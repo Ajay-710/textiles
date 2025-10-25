@@ -1,0 +1,45 @@
+/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:wght@700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+ 
+    --primary: 330 84% 56%; /* A rich pink, the core of your "silk" gradient */
+    --primary-foreground: 355.7 100% 97.3%;
+ 
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+ 
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+ 
+    --accent: 45 93% 47%; /* A vibrant gold for highlights */
+    --accent-foreground: 222.2 47.4% 11.2%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+ 
+    --radius: 0.5rem;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    background-image: linear-gradient(to top right, #fff1f2, #fdfbfb, #fef6e9);
+  }
+}
