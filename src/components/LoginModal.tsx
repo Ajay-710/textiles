@@ -66,11 +66,10 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   );
 };
 
-// --- Cashier Login Form with Redirect Logic ---
+// --- Cashier Login Form (Unchanged) ---
 const UserLoginForm = () => {
   const handleCashierLogin = (event: React.FormEvent) => {
-    event.preventDefault(); // Prevents the page from refreshing
-    // Redirects the browser to the specified URL
+    event.preventDefault();
     window.location.href = 'https://inventory-billing-system.vercel.app/cashier-dashboard';
   };
 
@@ -80,37 +79,19 @@ const UserLoginForm = () => {
         Cashier Sign In
       </h2>
       <form className="mt-8 space-y-6" onSubmit={handleCashierLogin}>
+        {/* Input fields... */}
         <div className="rounded-md -space-y-px">
           <div>
             <label htmlFor="user-email-address" className="sr-only">Email address</label>
-            <input
-              id="user-email-address"
-              name="email"
-              type="text"
-              autoComplete="email"
-              required
-              className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Email address"
-            />
+            <input id="user-email-address" name="email" type="text" autoComplete="email" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Email address" />
           </div>
           <div>
             <label htmlFor="user-password" className="sr-only">Password</label>
-            <input
-              id="user-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Password"
-            />
+            <input id="user-password" name="password" type="password" autoComplete="current-password" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password" />
           </div>
         </div>
         <div>
-          <button
-            type="submit"
-            className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md group hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
+          <button type="submit" className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md group hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             Sign in
           </button>
         </div>
@@ -119,45 +100,36 @@ const UserLoginForm = () => {
   );
 };
 
-// --- Admin Login Form (No redirect logic added yet) ---
+// --- THIS IS THE MODIFIED COMPONENT ---
 const AdminLoginForm = () => {
+  // 1. Create a function to handle the admin form submission
+  const handleAdminLogin = (event: React.FormEvent) => {
+    // 2. Prevent the default page refresh behavior
+    event.preventDefault();
+    
+    // 3. Perform the redirect to the admin dashboard
+    window.location.href = 'https://inventory-billing-system.vercel.app/admin-dashboard';
+  };
+
   return (
     <div>
       <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">
         Administrator Access
       </h2>
-      <form className="mt-8 space-y-6">
+      {/* 4. Connect the function to the form's onSubmit event */}
+      <form className="mt-8 space-y-6" onSubmit={handleAdminLogin}>
         <div className="rounded-md -space-y-px">
           <div>
             <label htmlFor="admin-email-address" className="sr-only">Admin Email</label>
-            <input
-              id="admin-email-address"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Admin Email"
-            />
+            <input id="admin-email-address" name="email" type="text" autoComplete="email" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Admin Email" />
           </div>
           <div>
             <label htmlFor="admin-password" className="sr-only">Password</label>
-            <input
-              id="admin-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Password"
-            />
+            <input id="admin-password" name="password" type="password" autoComplete="current-password" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password" />
           </div>
         </div>
         <div>
-          <button
-            type="submit"
-            className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md group hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          >
+          <button type="submit" className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md group hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
             Access Admin Panel
           </button>
         </div>
