@@ -1,5 +1,6 @@
-// tailwind.config.ts
 /** @type {import('tailwindcss').Config} */
+const plugin = require("tailwindcss/plugin");
+
 module.exports = {
   darkMode: ["class"],
   content: [
@@ -22,7 +23,6 @@ module.exports = {
         serif: ["Playfair Display", "serif"],
         sans: ["Inter", "sans-serif"],
       },
-      // THIS IS THE CRUCIAL PART THAT WAS MISSING
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -86,7 +86,7 @@ module.exports = {
   },
   plugins: [
     require("tailwindcss-animate"),
-    function ({ addUtilities }) {
+    plugin(function ({ addUtilities }) {
       addUtilities({
         '.text-gradient-silk': {
           '@apply bg-gradient-to-r from-pink-500 via-red-500 to-purple-600 bg-clip-text text-transparent': {},
@@ -106,7 +106,25 @@ module.exports = {
         '.transition-smooth': {
           '@apply transition-all duration-300 ease-in-out': {},
         },
+        // --- NEW SHINE EFFECT UTILITY ---
+        '.shine-effect': {
+          'position': 'relative',
+          'overflow': 'hidden',
+        },
+        '.shine-effect::before': {
+          'content': '""',
+          'position': 'absolute',
+          'top': '0',
+          'left': '-100%',
+          'width': '100%',
+          'height': '100%',
+          'background': 'linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.4), transparent)',
+          'transition': 'left 0.6s ease-in-out',
+        },
+        '.shine-effect:hover::before': {
+          'left': '100%',
+        },
       });
-    },
+    }),
   ],
 };
