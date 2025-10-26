@@ -38,9 +38,10 @@ const About = () => {
             {values.map((value, index) => {
               const Icon = value.icon;
               return (
+                // --- THIS IS THE CRITICAL LINE ---
                 <div
                   key={index}
-                  className="text-center p-6 bg-white/70 rounded-xl shadow-soft hover:shadow-elegant transition-shadow duration-300"
+                  className="text-center p-6 bg-white/60 backdrop-blur-sm rounded-xl shadow-soft hover:shadow-elegant transition-shadow duration-300 border border-white/50"
                 >
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-silk mb-5 shadow-md animate-float">
                     <Icon className="w-8 h-8 text-white" />

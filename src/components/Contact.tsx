@@ -45,7 +45,7 @@ const Contact = () => {
               return (
                 <div
                   key={item.title}
-                  className="flex flex-col items-center p-8 text-center bg-white/70 rounded-xl shadow-soft hover:shadow-elegant transition-shadow duration-300"
+                  className="flex flex-col items-center p-8 text-center bg-white/60 backdrop-blur-sm rounded-xl shadow-soft hover:shadow-elegant transition-shadow duration-300 border border-white/50"
                 >
                   <div className="p-4 mb-4 text-white rounded-lg bg-gradient-silk animate-float">
                     <Icon size={32} />
