@@ -1,63 +1,25 @@
+// src/components/LoginModal.tsx
+
 import React, { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
+import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
 
-type LoginType = 'user' | 'admin';
-
-interface LoginModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
-  const [loginType, setLoginType] = useState<LoginType>('user');
-
-  const commonButtonStyles = "w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300";
-  const activeButtonStyles = "bg-white shadow text-indigo-700";
-  const inactiveButtonStyles = "text-blue-100 hover:bg-white/[0.15] hover:text-white";
-
+const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const [loginType, setLoginType] = useState<'user' | 'admin'>('user');
+  
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        </Transition.Child>
-
+        {/* ... The Transition and Dialog structure remains the same ... */}
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0 scale-95"
-            enterTo="opacity-100 scale-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100 scale-100"
-            leaveTo="opacity-0 scale-95"
-          >
+          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
             <Dialog.Panel className="w-full max-w-md p-8 space-y-8 rounded-2xl shadow-2xl bg-black/40 backdrop-blur-xl ring-1 ring-black/5">
               <div className="p-1 space-x-1 bg-white/20 rounded-xl">
-                <button
-                  onClick={() => setLoginType('user')}
-                  className={`${commonButtonStyles} ${loginType === 'user' ? activeButtonStyles : inactiveButtonStyles}`}
-                >
-                  Cashier Login
-                </button>
-                <button
-                  onClick={() => setLoginType('admin')}
-                  className={`${commonButtonStyles} ${loginType === 'admin' ? activeButtonStyles : inactiveButtonStyles}`}
-                >
-                  Admin Login
-                </button>
+                <button onClick={() => setLoginType('user')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'user' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>Cashier Login</button>
+                <button onClick={() => setLoginType('admin')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'admin' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>Admin Login</button>
               </div>
-
-              {loginType === 'user' ? <UserLoginForm /> : <AdminLoginForm />}
-
+              {loginType === 'user' ? <UserLoginForm onClose={onClose} /> : <AdminLoginForm onClose={onClose} />}
             </Dialog.Panel>
           </Transition.Child>
         </div>
@@ -66,73 +28,45 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   );
 };
 
-// --- Cashier Login Form (Unchanged) ---
-const UserLoginForm = () => {
+const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
+  const navigate = useNavigate(); // 2. Initialize navigate
+
   const handleCashierLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    window.location.href = 'https://after-login-page.vercel.app/cashier-dashboard';
+    onClose(); // Close the modal
+    navigate('/cashier-dashboard'); // 3. Navigate to the internal route
   };
 
   return (
     <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">
-        Cashier Sign In
-      </h2>
+      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Cashier Sign In</h2>
       <form className="mt-8 space-y-6" onSubmit={handleCashierLogin}>
-        {/* Input fields... */}
-        <div className="rounded-md -space-y-px">
-          <div>
-            <label htmlFor="user-email-address" className="sr-only">Email address</label>
-            <input id="user-email-address" name="email" type="text" autoComplete="email" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Email address" />
-          </div>
-          <div>
-            <label htmlFor="user-password" className="sr-only">Password</label>
-            <input id="user-password" name="password" type="password" autoComplete="current-password" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password" />
-          </div>
-        </div>
-        <div>
-          <button type="submit" className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md group hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            Sign in
-          </button>
-        </div>
+        {/* ... form inputs ... */}
+        <div><input id="user-email-address" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Email address" /></div>
+        <div><input id="user-password" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Password" /></div>
+        <button type="submit" className="sidebar-btn bg-indigo-600 hover:bg-indigo-700">Sign in</button>
       </form>
     </div>
   );
 };
 
-// --- THIS IS THE MODIFIED COMPONENT ---
-const AdminLoginForm = () => {
-  // 1. Create a function to handle the admin form submission
+const AdminLoginForm = ({ onClose }: { onClose: () => void }) => {
+  const navigate = useNavigate(); // 2. Initialize navigate
+
   const handleAdminLogin = (event: React.FormEvent) => {
-    // 2. Prevent the default page refresh behavior
     event.preventDefault();
-    
-    // 3. Perform the redirect to the admin dashboard
-    window.location.href = 'https://after-login-page.vercel.app/admin-dashboard';
+    onClose(); // Close the modal
+    navigate('/admin-dashboard'); // 3. Navigate to the internal route
   };
 
   return (
     <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">
-        Administrator Access
-      </h2>
-      {/* 4. Connect the function to the form's onSubmit event */}
+      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Administrator Access</h2>
       <form className="mt-8 space-y-6" onSubmit={handleAdminLogin}>
-        <div className="rounded-md -space-y-px">
-          <div>
-            <label htmlFor="admin-email-address" className="sr-only">Admin Email</label>
-            <input id="admin-email-address" name="email" type="text" autoComplete="email" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Admin Email" />
-          </div>
-          <div>
-            <label htmlFor="admin-password" className="sr-only">Password</label>
-            <input id="admin-password" name="password" type="password" autoComplete="current-password" required className="relative block w-full px-3 py-2 text-white placeholder-gray-300 bg-white/10 border border-gray-500 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password" />
-          </div>
-        </div>
-        <div>
-          <button type="submit" className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md group hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-            Access Admin Panel
-          </button>
-        </div>
+        {/* ... form inputs ... */}
+        <div><input id="admin-email-address" type="email" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Admin Email" /></div>
+        <div><input id="admin-password" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Password" /></div>
+        <button type="submit" className="sidebar-btn bg-red-600 hover:bg-red-700">Access Admin Panel</button>
       </form>
     </div>
   );

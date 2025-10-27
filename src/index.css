@@ -43,3 +43,12 @@
     background-image: linear-gradient(to top right, #fff1f2, #fdfbfb, #fef6e9);
   }
 }
+/* Add these lines to src/index.css inside the @tailwind components; section */
+@layer components {
+  .form-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow;
+  }
+  .sidebar-btn {
+    @apply w-full flex items-center justify-center gap-2 px-4 py-3 text-white font-semibold rounded-lg hover:-translate-y-0.5 transition-transform;
+  }
+}
