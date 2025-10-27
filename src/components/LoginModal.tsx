@@ -1,17 +1,22 @@
 // src/components/LoginModal.tsx
-
 import React, { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
+import { useNavigate } from 'react-router-dom';
 
-const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+interface LoginModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const [loginType, setLoginType] = useState<'user' | 'admin'>('user');
   
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        {/* ... The Transition and Dialog structure remains the same ... */}
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+        </Transition.Child>
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
             <Dialog.Panel className="w-full max-w-md p-8 space-y-8 rounded-2xl shadow-2xl bg-black/40 backdrop-blur-xl ring-1 ring-black/5">
@@ -29,44 +34,42 @@ const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void 
 };
 
 const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
-  const navigate = useNavigate(); // 2. Initialize navigate
-
+  const navigate = useNavigate();
   const handleCashierLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    onClose(); // Close the modal
-    navigate('/cashier-dashboard'); // 3. Navigate to the internal route
+    onClose();
+    // Correctly navigates to the cashier's billing screen
+    navigate('/cashier'); 
   };
 
   return (
     <div>
       <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Cashier Sign In</h2>
-      <form className="mt-8 space-y-6" onSubmit={handleCashierLogin}>
-        {/* ... form inputs ... */}
-        <div><input id="user-email-address" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Email address" /></div>
-        <div><input id="user-password" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Password" /></div>
-        <button type="submit" className="sidebar-btn bg-indigo-600 hover:bg-indigo-700">Sign in</button>
+      <form className="mt-8 space-y-4" onSubmit={handleCashierLogin}>
+        <div><input id="user-email-address" type="text" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Username or Email" /></div>
+        <div><input id="user-password-address" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
+        <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Sign in</button>
       </form>
     </div>
   );
 };
 
 const AdminLoginForm = ({ onClose }: { onClose: () => void }) => {
-  const navigate = useNavigate(); // 2. Initialize navigate
-
+  const navigate = useNavigate();
   const handleAdminLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    onClose(); // Close the modal
-    navigate('/admin-dashboard'); // 3. Navigate to the internal route
+    onClose();
+    // Correctly navigates to the admin's default screen (products)
+    navigate('/admin'); 
   };
-
+  
   return (
     <div>
       <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Administrator Access</h2>
-      <form className="mt-8 space-y-6" onSubmit={handleAdminLogin}>
-        {/* ... form inputs ... */}
-        <div><input id="admin-email-address" type="email" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Admin Email" /></div>
-        <div><input id="admin-password" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300" placeholder="Password" /></div>
-        <button type="submit" className="sidebar-btn bg-red-600 hover:bg-red-700">Access Admin Panel</button>
+      <form className="mt-8 space-y-4" onSubmit={handleAdminLogin}>
+        <div><input id="admin-email-address" type="text" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Admin Username" /></div>
+        <div><input id="admin-password-address" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
+        <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">Access Admin Panel</button>
       </form>
     </div>
   );

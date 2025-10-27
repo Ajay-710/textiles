@@ -2,7 +2,6 @@
 
 import React from 'react';
 
-// Define the structure of the data this component will receive
 interface BillItem {
   id: number;
   name: string;
@@ -17,7 +16,6 @@ interface BillProps {
   changeDue: number;
 }
 
-// We use React.forwardRef to allow the parent component to get a reference to this one
 export const BillToPrint = React.forwardRef<HTMLDivElement, BillProps>((props, ref) => {
   const { items, total, cashTendered, changeDue } = props;
   const currentDate = new Date().toLocaleString();

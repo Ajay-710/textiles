@@ -1,0 +1,2 @@
+const Suppliers = () => <div className="bg-white p-6 rounded-lg shadow-sm"><h1 className="text-2xl font-bold">Supplier Management</h1><p>This page is under construction.</p></div>;
+export default Suppliers;

@@ -1,20 +1,19 @@
 // src/App.tsx
-
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
 import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import LoginModal from "./components/LoginModal";
-// --- 1. IMPORT THE NEW DASHBOARD COMPONENTS ---
-import CashierDashboard from './pages/dashboard/CashierDashboard';
-import AdminDashboard from './pages/dashboard/AdminDashboard';
+import LoginModal from "@/components/LoginModal";
+import NotFound from "@/pages/NotFound";
 
-const queryClient = new QueryClient();
+// --- CORRECTED IMPORTS USING THE @ ALIAS ---
+import AdminLayout from '@/pages/dashboard/AdminLayout';
+import CashierLayout from '@/pages/dashboard/CashierLayout';
+import Billing from '@/components/dashboard/Billing';
+import Products from '@/components/dashboard/Products';
+import Purchase from '@/components/dashboard/Purchase';
+import Suppliers from '@/components/dashboard/Suppliers';
+import Reports from '@/components/dashboard/Reports';
+import Settings from '@/components/dashboard/Settings';
 
 const App = () => {
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
@@ -22,25 +21,30 @@ const App = () => {
   const closeLoginModal = () => setLoginModalOpen(false);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index onLoginClick={openLoginModal} />} />
-            
-            {/* --- 2. ADD THE NEW DASHBOARD ROUTES --- */}
-            <Route path="/cashier-dashboard" element={<CashierDashboard />} />
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Index onLoginClick={openLoginModal} />} />
+        
+        {/* === ADMIN ROUTE GROUP === */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Products />} />
+          <Route path="billing" element={<Billing />} />
+          <Route path="products" element={<Products />} />
+          <Route path="purchase" element={<Purchase />} />
+          <Route path="suppliers" element={<Suppliers />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          
-          <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+        {/* === CASHIER ROUTE GROUP === */}
+        <Route path="/cashier" element={<CashierLayout />}>
+          <Route index element={<Billing />} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
+    </BrowserRouter>
   );
 };
 
