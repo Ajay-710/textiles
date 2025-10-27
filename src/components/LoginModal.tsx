@@ -70,7 +70,7 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 const UserLoginForm = () => {
   const handleCashierLogin = (event: React.FormEvent) => {
     event.preventDefault();
-    window.location.href = 'https://inventory-billing-system.vercel.app/cashier-dashboard';
+    window.location.href = 'https://after-login-page.vercel.app/cashier-dashboard';
   };
 
   return (
@@ -108,7 +108,7 @@ const AdminLoginForm = () => {
     event.preventDefault();
     
     // 3. Perform the redirect to the admin dashboard
-    window.location.href = 'https://inventory-billing-system.vercel.app/admin-dashboard';
+    window.location.href = 'https://after-login-page.vercel.app/admin-dashboard';
   };
 
   return (
