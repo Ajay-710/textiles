@@ -5,7 +5,7 @@ import { Save } from 'lucide-react';
 const Settings = () => {
   const [shopName, setShopName] = useLocalStorage('shopName', 'T.Gopi Textiles');
   const [gstNumber, setGstNumber] = useLocalStorage('gstNumber', 'YOUR_GST_NUMBER_HERE');
-  const [billMessage, setBillMessage] = useLocalStorage('billMessage', 'Thank You For Your Purchasing');
+  const [billMessage, setBillMessage] = useLocalStorage('billMessage', 'Thank You For Your Purchase');
 
   const handleSave = () => {
     alert("Settings Saved!");
