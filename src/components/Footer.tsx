@@ -13,7 +13,7 @@ const Footer = () => {
   return (
     <AnimatedSection className="pt-0 pb-16">
       <div className="container mx-auto px-4">
-        <div className="p-8 md:p-12 bg-white/50 backdrop-blur-xl rounded-2xl shadow-elegant border border-white/50">
+        <div className="animated-border-advanced p-8 md:p-12 bg-white/50 backdrop-blur-xl rounded-2xl shadow-elegant">
           <div className="grid md:grid-cols-3 gap-12 mb-10">
             <div>
               <h3 className="text-3xl font-serif font-bold text-gradient-silk mb-4">
@@ -46,14 +46,24 @@ const Footer = () => {
                 Store Hours
               </h4>
               <ul className="space-y-2 text-gray-600">
-                <li>Monday - Saturday: 10:00 AM - 8:00 PM</li>
-                <li>Sunday: 10:00 AM - 6:00 PM</li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary/50"></span>
+                  Monday - Saturday: 10:00 AM - 8:00 PM
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary/50"></span>
+                  Sunday: 10:00 AM - 6:00 PM
+                </li>
               </ul>
+              <p className="mt-6 border-l-4 border-primary/50 pl-4 text-muted-foreground">
+                Visit us in-store for personalized assistance and to see our
+                complete collection.
+              </p>
             </div>
           </div>
           <div className="border-t border-gray-200 pt-8 text-center">
             <p className="text-gray-500">
-              © {currentYear} FlipFlex. All Rights Reserved.
+              © {currentYear} T.Gopi Textiles. All Rights Reserved.
             </p>
           </div>
         </div>
@@ -61,4 +71,5 @@ const Footer = () => {
     </AnimatedSection>
   );
 };
+
 export default Footer;
