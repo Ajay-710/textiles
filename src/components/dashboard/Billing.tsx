@@ -98,8 +98,8 @@ const Billing = () => {
             <table className="w-full text-left">
               <thead className="bg-gray-100 sticky top-0">
                 <tr>
-                  <th className="p-3">Code</th>
-                  <th className="p-3">Particulars</th>
+                  <th className="p-3">Customer Name</th>
+                  <th className="p-3">Customer Number</th>
                   <th className="p-3">Qty</th>
                   <th className="p-3">Rate</th>
                   <th className="p-3">Dis</th>
