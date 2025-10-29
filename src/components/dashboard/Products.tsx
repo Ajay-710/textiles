@@ -77,7 +77,7 @@ const Products = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-800">Stock Details</h1>
+      <h1 className="text-3xl font-bold text-gray-800">Stock / Products Details</h1>
       <div className="bg-white p-6 rounded-lg shadow-sm flex justify-between items-center">
         <input type="text" placeholder="Search by Name, Barcode, or ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="form-input w-1/3" />
         <div className="flex gap-4">
