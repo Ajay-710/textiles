@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Pencil, Trash2, PlusCircle, X, Download } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, X, Download, Layers } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 
 // Data Structures
@@ -22,20 +22,14 @@ const Products = () => {
     { id: 1001, dateAdded: new Date().toLocaleDateString(), supplierName: "Kanchi Weavers", supplierId: "S-001", name: "Kanchipuram Silk Saree", category: "Silk Saree", purchaseRate: 1800, price: 2499, qty: 30, gst: 12 },
     { id: 1003, dateAdded: new Date().toLocaleDateString(), supplierName: "Jaipur Prints", supplierId: "S-003", name: "Printed Cotton Kurti", category: "Kurti", purchaseRate: 550, price: 799, qty: 100, gst: 5 },
   ]);
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [categories, setCategories] = useLocalStorage<string[]>('productCategories', ['Silk Saree', 'Kurti', 'Gown', 'Dress Material']);
+  const [isProductModalOpen, setProductModalOpen] = useState(false);
+  const [isCategoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const handleOpenModal = (product: Product | null) => {
-    setEditingProduct(product);
-    setIsModalOpen(true);
-  };
-  
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingProduct(null);
-  };
+  const handleOpenProductModal = (product: Product | null) => { setEditingProduct(product); setProductModalOpen(true); };
+  const handleCloseProductModal = () => { setProductModalOpen(false); setEditingProduct(null); };
 
   const handleSaveProduct = (productToSave: Omit<Product, 'id'> & { id?: number }) => {
     if (productToSave.id) {
@@ -44,7 +38,7 @@ const Products = () => {
       const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1001;
       setProducts([...products, { ...(productToSave as Omit<Product, 'id'>), id: newId }]);
     }
-    handleCloseModal();
+    handleCloseProductModal();
   };
   
   const handleDeleteProduct = (productId: number) => {
@@ -52,26 +46,26 @@ const Products = () => {
       setProducts(products.filter(p => p.id !== productId));
     }
   };
+
+  const handleAddCategory = (newCategory: string) => {
+    if (newCategory && !categories.includes(newCategory)) { setCategories([...categories, newCategory]); }
+  };
+  const handleDeleteCategory = (categoryToDelete: string) => {
+    if (window.confirm(`Delete category "${categoryToDelete}"? This cannot be undone.`)) {
+      setCategories(categories.filter(c => c !== categoryToDelete));
+    }
+  };
   
   const handleExportToExcel = () => {
     const dataToExport = products.map((p, index) => ({
-      "Sl. No": index + 1,
-      "Date Added": p.dateAdded,
-      "Product ID": p.id,
-      "Product Name": p.name,
-      "Category": p.category,
-      "Supplier ID": p.supplierId,
-      "Supplier Name": p.supplierName,
-      "Purchase Rate": p.purchaseRate,
-      "Selling Price": p.price,
-      "Quantity": p.qty,
-      "GST %": p.gst,
-      "Net Profit": (p.price - p.purchaseRate) * p.qty,
+      "Sl. No": index + 1, "Date Added": p.dateAdded, "Product ID": p.id, "Product Name": p.name,
+      "Category": p.category, "Supplier ID": p.supplierId, "Supplier Name": p.supplierName,
+      "Purchase Rate": p.purchaseRate, "Selling Price": p.price, "Quantity": p.qty, "GST %": p.gst,
     }));
     const worksheet = utils.json_to_sheet(dataToExport);
     const workbook = utils.book_new();
     utils.book_append_sheet(workbook, worksheet, "Products");
-    writeFile(workbook, "Stock_Details_with_Profit.xlsx");
+    writeFile(workbook, "Stock_Details.xlsx");
   };
 
   const filteredProducts = products.filter(p => 
@@ -92,60 +86,57 @@ const Products = () => {
           className="form-input w-1/3"
         />
         <div className="flex gap-4">
-          <button onClick={handleExportToExcel} className="px-5 py-2.5 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 flex items-center gap-2"><Download size={20} /> Export to Excel</button>
-          <button onClick={() => handleOpenModal(null)} className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2"><PlusCircle size={20} /> Add New Product</button>
+          <button onClick={handleExportToExcel} className="px-5 py-2.5 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 flex items-center gap-2"><Download size={20} /> Export</button>
+          <button onClick={() => setCategoryModalOpen(true)} className="px-5 py-2.5 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 flex items-center gap-2">
+            <Layers size={20} /> Manage Categories
+          </button>
+          <button onClick={() => handleOpenProductModal(null)} className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2">
+            <PlusCircle size={20} /> Add New Product
+          </button>
         </div>
       </div>
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
-              {/* --- 1. ADDED "Net Profit" TO HEADER --- */}
               <tr>
-                <th className="p-4">Sl. No</th><th className="p-4">Product Name</th>
-                <th className="p-4">Purchase Rate</th><th className="p-4">Selling Price</th>
-                <th className="p-4">Qty</th><th className="p-4">Net Profit</th>
-                <th className="p-4">Action</th>
+                <th className="p-4">Sl. No</th><th className="p-4">Date</th><th className="p-4">Product ID</th><th className="p-4">Product Name</th>
+                <th className="p-4">Category</th><th className="p-4">Supplier</th><th className="p-4">Purchase Rate</th>
+                <th className="p-4">Selling Price</th><th className="p-4">Qty</th><th className="p-4">GST %</th><th className="p-4">Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((product, index) => {
-                // --- 2. CALCULATE PROFIT FOR EACH ROW ---
-                const netProfit = (product.price - product.purchaseRate) * product.qty;
-                return (
-                  <tr key={product.id} className="border-t hover:bg-gray-50">
-                    <td className="p-4">{index + 1}</td>
-                    <td className="p-4 font-medium">{product.name}</td>
-                    <td className="p-4 text-red-600">₹{(product.purchaseRate || 0).toFixed(2)}</td>
-                    <td className="p-4 text-green-600">₹{(product.price || 0).toFixed(2)}</td>
-                    <td className="p-4 font-bold">{product.qty}</td>
-                    {/* --- 3. DISPLAY THE CALCULATED PROFIT --- */}
-                    <td className={`p-4 font-bold ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                      ₹{netProfit.toFixed(2)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex gap-3">
-                        <button onClick={() => handleOpenModal(product)} className="text-blue-600 hover:text-blue-800"><Pencil size={18} /></button>
-                        <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredProducts.map((product, index) => (
+                <tr key={product.id} className="border-t hover:bg-gray-50">
+                  <td className="p-4">{index + 1}</td><td className="p-4">{product.dateAdded}</td>
+                  <td className="p-4 font-mono">{product.id}</td><td className="p-4 font-medium">{product.name}</td>
+                  <td className="p-4">{product.category}</td><td className="p-4">{product.supplierName} ({product.supplierId})</td>
+                  <td className="p-4">₹{(product.purchaseRate || 0).toFixed(2)}</td><td className="p-4">₹{(product.price || 0).toFixed(2)}</td>
+                  <td className="p-4 font-bold">{product.qty}</td><td className="p-4">{product.gst}%</td>
+                  <td className="p-4">
+                    <div className="flex gap-3">
+                      <button onClick={() => handleOpenProductModal(product)} className="text-blue-600 hover:text-blue-800"><Pencil size={18} /></button>
+                      <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
       
-      {isModalOpen && <ProductFormModal product={editingProduct} onSave={handleSaveProduct} onClose={handleCloseModal} />}
+      {isProductModalOpen && <ProductFormModal product={editingProduct} categories={categories} onSave={handleSaveProduct} onClose={handleCloseProductModal} />}
+      {isCategoryModalOpen && <CategoryModal categories={categories} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onClose={() => setCategoryModalOpen(false)} />}
     </div>
   );
 };
 
-const ProductFormModal = ({ product, onSave, onClose }: { product: Product | null, onSave: (p: Omit<Product, 'id'> & { id?: number }) => void, onClose: () => void }) => {
+// --- THIS IS THE FULL, CORRECT CODE FOR THE MODALS ---
+const ProductFormModal = ({ product, categories, onSave, onClose }: { product: Product | null, categories: string[], onSave: (p: Omit<Product, 'id'> & { id?: number }) => void, onClose: () => void }) => {
   const [formData, setFormData] = useState(product || {
     dateAdded: new Date().toLocaleDateString(), supplierName: '', supplierId: '', 
-    name: '', category: '', purchaseRate: 0, price: 0, qty: 0, gst: 0,
+    name: '', category: categories[0] || '', purchaseRate: 0, price: 0, qty: 0, gst: 0,
   });
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -162,8 +153,16 @@ const ProductFormModal = ({ product, onSave, onClose }: { product: Product | nul
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label>Product Name</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="form-input mt-1" required /></div>
-            <div><label>Category</label><input type="text" placeholder="e.g., Silk Saree, Kurti" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="form-input mt-1" required /></div>
+            <div>
+              <label>Product Name</label>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="form-input mt-1" required />
+            </div>
+            <div>
+              <label>Category</label>
+              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="form-input mt-1" required>
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label>Supplier Name</label><input type="text" value={formData.supplierName} onChange={e => setFormData({...formData, supplierName: e.target.value})} className="form-input mt-1" required /></div>
@@ -180,6 +179,44 @@ const ProductFormModal = ({ product, onSave, onClose }: { product: Product | nul
             <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Save Product</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+const CategoryModal = ({ categories, onAdd, onDelete, onClose }: { categories: string[], onAdd: (cat: string) => void, onDelete: (cat: string) => void, onClose: () => void }) => {
+  const [newCategory, setNewCategory] = useState('');
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAdd(newCategory.trim());
+    setNewCategory('');
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Manage Categories</h2>
+          <button onClick={onClose}><X/></button>
+        </div>
+        <div className="space-y-4">
+          <form onSubmit={handleAdd} className="flex gap-2">
+            <input type="text" placeholder="New category name..." value={newCategory} onChange={e => setNewCategory(e.target.value)} className="form-input flex-grow" />
+            <button type="submit" className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-md">Add</button>
+          </form>
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-2">Existing Categories:</h3>
+            <ul className="max-h-60 overflow-y-auto space-y-2">
+              {categories.map(cat => (
+                <li key={cat} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                  <span>{cat}</span>
+                  <button onClick={() => onDelete(cat)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
