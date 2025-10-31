@@ -67,7 +67,7 @@ const Products = () => {
   const handleSaveProduct = async (formData: any) => {
     const isEditing = !!formData.id;
     const method = isEditing ? 'PATCH' : 'POST';
-    const endpoint = isEditing ? `${API_URL}/products/${formData.id}` : `${API_URL}/products`;
+    const endpoint = isEditing ? `update/${API_URL}/products/${formData.id}` : `${API_URL}/products/add`;
     
     const payload = {
       name: formData.name, category: formData.category,
@@ -103,7 +103,7 @@ const Products = () => {
     if (window.confirm("Are you sure you want to delete this product?")) {
       try {
         const headers = await getAuthHeader();
-        await fetch(`${API_URL}/products/${productId}`, { method: 'DELETE', headers });
+        await fetch(`${API_URL}/products/delete/${productId}`, { method: 'DELETE', headers });
         setProducts(products.filter(p => p.id !== productId));
       } catch (error) {
         console.error("Failed to delete product:", error);
