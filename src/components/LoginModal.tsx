@@ -1,4 +1,3 @@
-// src/components/LoginModal.tsx
 import React, { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
@@ -37,20 +36,37 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 
 const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
   const navigate = useNavigate();
-  const handleCashierLogin = (event: React.FormEvent) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleCashierLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    onClose();
-    // Correctly navigates to the cashier's billing screen
-    navigate('/cashier'); 
+    setError('');
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      onClose();
+      navigate('/cashier');
+    } catch (err: any) {
+      console.error("Cashier login failed:", err);
+      setError("Invalid credentials. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div>
       <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Cashier Sign In</h2>
       <form className="mt-8 space-y-4" onSubmit={handleCashierLogin}>
-        <div><input id="user-email-address" type="text" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Username or Email" /></div>
-        <div><input id="user-password-address" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
-        <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Sign in</button>
+        <div><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Email" /></div>
+        <div><input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
+        {error && <p className="text-red-400 text-center text-sm">{error}</p>}
+        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400">
+          {isLoading ? 'Signing In...' : 'Sign in'}
+        </button>
       </form>
     </div>
   );
@@ -61,40 +77,33 @@ const AdminLoginForm = ({ onClose }: { onClose: () => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // Add a loading state
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleAdminLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    setIsLoading(true); // Start loading
-
-    // --- DEBUGGING LOGS ---
-    console.log("Attempting to log in with:");
-    console.log("Email:", email);
-    console.log("Password:", password);
-    // --------------------
-
+    setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      console.log("Firebase login successful!"); // Success message
       onClose();
-      navigate('/admin/products');
+      navigate('/admin');
     } catch (err: any) {
-      console.error("Firebase login failed:", err); // Log the actual Firebase error
+      console.error("Admin login failed:", err);
       setError("Invalid admin credentials. Please check email and password.");
     } finally {
-      setIsLoading(false); // Stop loading
+      setIsLoading(false);
     }
   };
-  
+
   return (
     <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white">Administrator Access</h2>
+      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Administrator Access</h2>
       <form className="mt-8 space-y-4" onSubmit={handleAdminLogin}>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white" placeholder="Admin Email"/>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white" placeholder="Password"/>
+        <div><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Admin Email" /></div>
+        <div><input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
         {error && <p className="text-red-400 text-center text-sm">{error}</p>}
-        <button type="submit" disabled={isLoading} className="w-full ...">
+        {/* --- THIS IS THE CORRECTED BUTTON --- */}
+        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400">
           {isLoading ? 'Signing In...' : 'Access Admin Panel'}
         </button>
       </form>
