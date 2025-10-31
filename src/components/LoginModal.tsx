@@ -2,6 +2,8 @@
 import React, { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -56,20 +58,45 @@ const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
 
 const AdminLoginForm = ({ onClose }: { onClose: () => void }) => {
   const navigate = useNavigate();
-  const handleAdminLogin = (event: React.FormEvent) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Add a loading state
+
+  const handleAdminLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    onClose();
-    // Correctly navigates to the admin's default screen (products)
-    navigate('/admin'); 
+    setError('');
+    setIsLoading(true); // Start loading
+
+    // --- DEBUGGING LOGS ---
+    console.log("Attempting to log in with:");
+    console.log("Email:", email);
+    console.log("Password:", password);
+    // --------------------
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      console.log("Firebase login successful!"); // Success message
+      onClose();
+      navigate('/admin/products');
+    } catch (err: any) {
+      console.error("Firebase login failed:", err); // Log the actual Firebase error
+      setError("Invalid admin credentials. Please check email and password.");
+    } finally {
+      setIsLoading(false); // Stop loading
+    }
   };
   
   return (
     <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Administrator Access</h2>
+      <h2 className="mt-6 text-center text-3xl font-bold text-white">Administrator Access</h2>
       <form className="mt-8 space-y-4" onSubmit={handleAdminLogin}>
-        <div><input id="admin-email-address" type="text" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Admin Username" /></div>
-        <div><input id="admin-password-address" type="password" required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
-        <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">Access Admin Panel</button>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white" placeholder="Admin Email"/>
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white" placeholder="Password"/>
+        {error && <p className="text-red-400 text-center text-sm">{error}</p>}
+        <button type="submit" disabled={isLoading} className="w-full ...">
+          {isLoading ? 'Signing In...' : 'Access Admin Panel'}
+        </button>
       </form>
     </div>
   );
