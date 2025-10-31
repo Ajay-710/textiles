@@ -3,12 +3,12 @@ import { Pencil, Trash2, PlusCircle, X, Download, Layers } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { utils, writeFile } from 'xlsx';
-import Barcode from 'react-barcode'; // We'll keep this for the modal
+import Barcode from 'react-barcode';
 
 // API URL
 const API_URL = 'https://product-service-821973944217.asia-southeast1.run.app/api';
 
-// Data Structures - Add barcodeImageUrl
+// Data Structures
 interface Product {
   id: string;
   name: string;
@@ -21,7 +21,7 @@ interface Product {
   vendorId: string;
   vendorName: string;
   barcode: string;
-  barcodeImageUrl?: string; // Make it optional
+  barcodeImageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,20 +108,41 @@ const Products = () => {
   const handleOpenModal = (product: Product | null) => { setEditingProduct(product); setIsModalOpen(true); };
   const handleCloseModal = () => { setIsModalOpen(false); setEditingProduct(null); };
 
+  const handleDownloadBarcode = (url: string, barcode: string) => {
+    fetch(url)
+      .then(response => response.blob())
+      .then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `barcode-${barcode}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(() => alert('Could not download barcode image.'));
+  };
+
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.barcode && p.barcode.includes(searchTerm)) ||
     p.id.toString().includes(searchTerm)
   );
   
-  if (isLoading) return <div className="p-6 text-center text-gray-500">Authenticating and loading product data...</div>;
-  if (error) return <div className="p-6 text-red-600 font-semibold">Error: {error}</div>;
+  if (isLoading) return <div className="p-6">Loading...</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Stock / Products Details</h1>
       <div className="bg-white p-6 rounded-lg shadow-sm flex justify-between items-center">
-        <input type="text" placeholder="Search by Name, Category, or ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="form-input w-1/3" />
+        <input 
+          type="text" 
+          placeholder="Search by Name, Category, or ID..." 
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          className="form-input w-1/3"
+        />
         <div className="flex gap-4">
           <button onClick={() => setCategoryModalOpen(true)} className="px-5 py-2.5 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 flex items-center gap-2"><Layers size={20} /> Manage Categories</button>
           <button onClick={() => handleOpenModal(null)} className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2"><PlusCircle size={20} /> Add New Product</button>
@@ -131,28 +152,38 @@ const Products = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
-              {/* --- 1. ADDED BARCODE TO THE HEADER --- */}
               <tr>
-                <th className="p-4">Sl. No</th><th className="p-4">Product Name</th><th className="p-4">Barcode</th>
-                <th className="p-4">Category</th><th className="p-4">Purchase Rate</th>
-                <th className="p-4">Selling Price</th><th className="p-4">Stock Qty</th><th className="p-4">Action</th>
+                <th className="p-4">Sl. No</th>
+                <th className="p-4">Product ID</th>
+                <th className="p-4">Product Name</th>
+                <th className="p-4">Barcode</th>
+                <th className="p-4">Category</th>
+                <th className="p-4">Selling Price</th>
+                <th className="p-4">Stock Qty</th>
+                <th className="p-4">Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredProducts.map((product, index) => (
                 <tr key={product.id} className="border-t hover:bg-gray-50">
                   <td className="p-4">{index + 1}</td>
+                  <td className="p-4 font-mono">{product.id}</td>
                   <td className="p-4 font-medium">{product.name}</td>
-                  {/* --- 2. RENDER THE BARCODE IMAGE --- */}
                   <td className="p-4">
-                    {product.barcodeImageUrl ? (
-                      <img src={product.barcodeImageUrl} alt={`Barcode for ${product.name}`} className="h-8" />
-                    ) : (
-                      <span className="text-gray-400">No Image</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{product.barcode}</span>
+                      {product.barcodeImageUrl && (
+                        <button 
+                          onClick={() => handleDownloadBarcode(product.barcodeImageUrl!, product.barcode)}
+                          title="Download Barcode Image"
+                          className="text-gray-400 hover:text-blue-600"
+                        >
+                          <Download size={16} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4">{product.category}</td>
-                  <td className="p-4">₹{(product.purchaseRate || 0).toFixed(2)}</td>
                   <td className="p-4">₹{(product.price || 0).toFixed(2)}</td>
                   <td className="p-4 font-bold">{product.stockQuantity}</td>
                   <td className="p-4">
@@ -174,7 +205,6 @@ const Products = () => {
   );
 };
 
-const ProductFormModal = ({ product, categories, onSave, onClose }: any) => { /* ... Unchanged ... */ };
-const CategoryModal = ({ categories, onClose }: any) => { /* ... Unchanged ... */ };
+// ... (ProductFormModal and CategoryModal components remain the same)
 
 export default Products;
