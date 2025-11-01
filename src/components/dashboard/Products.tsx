@@ -144,3 +144,4 @@ const ProductFormModal = ({ product, categories, vendors, onSave, onClose }: { p
 const CategoryModal = ({ categories, onAdd, onDelete, onClose }: { categories: string[], onAdd: (cat: string) => void, onDelete: (cat: string) => void, onClose: () => void }) => { /* ... Unchanged ... */ };
 
 export default Products;
+//test
