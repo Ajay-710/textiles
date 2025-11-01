@@ -11,7 +11,7 @@ interface LoginModalProps {
 
 const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const [loginType, setLoginType] = useState<'user' | 'admin'>('user');
-  
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -22,10 +22,31 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
           <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
             <Dialog.Panel className="w-full max-w-md p-8 space-y-8 rounded-2xl shadow-2xl bg-black/40 backdrop-blur-xl ring-1 ring-black/5">
               <div className="p-1 space-x-1 bg-white/20 rounded-xl">
-                <button onClick={() => setLoginType('user')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'user' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>Cashier Login</button>
-                <button onClick={() => setLoginType('admin')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'admin' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>Admin Login</button>
+                <button onClick={() => setLoginType('user')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'user' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>
+                  Cashier Login
+                </button>
+                <button onClick={() => setLoginType('admin')} className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg transition-all duration-300 ${loginType === 'admin' ? 'bg-white shadow text-indigo-700' : 'text-blue-100 hover:bg-white/[0.15] hover:text-white'}`}>
+                  Admin Login
+                </button>
               </div>
-              {loginType === 'user' ? <UserLoginForm onClose={onClose} /> : <AdminLoginForm onClose={onClose} />}
+              
+              {loginType === 'user' ? (
+                <LoginForm
+                  onClose={onClose}
+                  role="Cashier"
+                  navigateTo="/cashier"
+                  buttonText="Sign in"
+                  buttonClass="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400"
+                />
+              ) : (
+                <LoginForm
+                  onClose={onClose}
+                  role="Admin"
+                  navigateTo="/admin"
+                  buttonText="Access Admin Panel"
+                  buttonClass="bg-red-600 hover:bg-red-700 disabled:bg-red-400"
+                />
+              )}
             </Dialog.Panel>
           </Transition.Child>
         </div>
@@ -34,24 +55,39 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   );
 };
 
-const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
+// --- Reusable Login Form Component ---
+interface LoginFormProps {
+  onClose: () => void;
+  role: 'Admin' | 'Cashier';
+  navigateTo: string;
+  buttonText: string;
+  buttonClass: string;
+}
+
+const LoginForm = ({ onClose, role, navigateTo, buttonText, buttonClass }: LoginFormProps) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCashierLogin = async (event: React.FormEvent) => {
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
     setIsLoading(true);
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Use the Firebase Client SDK - this is the correct way.
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // The SDK automatically handles the ID token. Our Axios interceptor will use it.
+      console.log(`${role} login successful for:`, userCredential.user.email);
+      
       onClose();
-      navigate('/cashier');
+      navigate(navigateTo);
     } catch (err: any) {
-      console.error("Cashier login failed:", err);
-      setError("Invalid credentials. Please try again.");
+      console.error(`${role} login failed:`, err);
+      setError(`Invalid ${role.toLowerCase()} credentials. Please try again.`);
     } finally {
       setIsLoading(false);
     }
@@ -59,52 +95,37 @@ const UserLoginForm = ({ onClose }: { onClose: () => void }) => {
 
   return (
     <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Cashier Sign In</h2>
-      <form className="mt-8 space-y-4" onSubmit={handleCashierLogin}>
-        <div><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Email" /></div>
-        <div><input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
+      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">
+        {role === 'Admin' ? 'Administrator Access' : 'Cashier Sign In'}
+      </h2>
+      <form className="mt-8 space-y-4" onSubmit={handleLogin}>
+        <div>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500"
+            placeholder={`${role} Email`}
+          />
+        </div>
+        <div>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500"
+            placeholder="Password"
+          />
+        </div>
         {error && <p className="text-red-400 text-center text-sm">{error}</p>}
-        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400">
-          {isLoading ? 'Signing In...' : 'Sign in'}
-        </button>
-      </form>
-    </div>
-  );
-};
-
-const AdminLoginForm = ({ onClose }: { onClose: () => void }) => {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleAdminLogin = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError('');
-    setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      onClose();
-      navigate('/admin');
-    } catch (err: any) {
-      console.error("Admin login failed:", err);
-      setError("Invalid admin credentials. Please check email and password.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="mt-6 text-center text-3xl font-bold text-white tracking-tight">Administrator Access</h2>
-      <form className="mt-8 space-y-4" onSubmit={handleAdminLogin}>
-        <div><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Admin Email" /></div>
-        <div><input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="form-input bg-white/10 text-white placeholder-gray-300 border-gray-500" placeholder="Password" /></div>
-        {error && <p className="text-red-400 text-center text-sm">{error}</p>}
-        {/* --- THIS IS THE CORRECTED BUTTON --- */}
-        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400">
-          {isLoading ? 'Signing In...' : 'Access Admin Panel'}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white ${buttonClass}`}
+        >
+          {isLoading ? 'Signing In...' : buttonText}
         </button>
       </form>
     </div>

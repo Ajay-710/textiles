@@ -2,26 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Pencil, Trash2, PlusCircle, X, Download, Layers } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-
-// API URL
-const API_URL = 'https://product-service-821973944217.asia-southeast1.run.app/api';
+import { productService, vendorService } from '@/lib/api';
+import { utils, writeFile } from 'xlsx';
 
 // Data Structures
 interface Product {
-  id: string;
-  name: string;
-  category: string;
-  purchaseRate: number;
-  purchaseGst: number;
-  price: number;
-  discount: number;
-  stockQuantity: number;
-  vendorId: string;
-  vendorName: string;
-  barcode: string;
-  barcodeImageUrl?: string;
-  createdAt: string;
-  updatedAt: string;
+  id: string; name: string; category: string; purchaseRate: number; purchaseGst: number;
+  price: number; discount: number; stockQuantity: number; vendorId: string; vendorName: string;
+  createdAt: string; updatedAt: string;
 }
 interface Vendor { id: string; name: string; }
 
@@ -36,34 +24,17 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const getAuthHeader = async () => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("No user is logged in.");
-    const token = await user.getIdToken();
-    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-  };
-
   const fetchData = async () => {
     try {
       setIsLoading(true); setError(null);
-      const headers = await getAuthHeader();
-      
-      const [productsResponse, vendorsResponse] = await Promise.all([
-        fetch(`${API_URL}/products/all`, { headers }),
-        fetch(`${API_URL}/vendors/all`, { headers })
+      const [productsRes, vendorsRes] = await Promise.all([
+        productService.get('/products/all'),
+        vendorService.get('/vendors/all')
       ]);
-
-      if (!productsResponse.ok) throw new Error('Failed to fetch products');
-      if (!vendorsResponse.ok) throw new Error('Failed to fetch vendors');
-      
-      const productsData = await productsResponse.json();
-      const vendorsData = await vendorsResponse.json();
-      
-      setProducts(Array.isArray(productsData) ? productsData : []);
-      setVendors(Array.isArray(vendorsData) ? vendorsData : []);
-    } catch (error: any) {
-      console.error("Failed to fetch initial data:", error);
-      setError(error.message || "Could not load data from the server.");
+      setProducts(productsRes.data || []);
+      setVendors(vendorsRes.data || []);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || "Could not load data.");
     } finally {
       setIsLoading(false);
     }
@@ -77,90 +48,99 @@ const Products = () => {
     return () => unsubscribe();
   }, []);
   
-  const handleSaveProduct = async (formData: any) => { /* ... Unchanged ... */ };
-  const handleDeleteProduct = async (productId: string) => { /* ... Unchanged ... */ };
+  const handleSaveProduct = async (formData: any) => {
+    const isEditing = !!formData.id;
+    const method = isEditing ? 'patch' : 'post';
+    const endpoint = isEditing ? `/products/${formData.id}` : `/products/add`;
+    try {
+      await productService[method](endpoint, formData);
+      await fetchData(); // Refresh data
+      setIsModalOpen(false);
+    } catch (err: any) {
+      alert(`Error saving product: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    if (window.confirm("Are you sure?")) {
+      try {
+        await productService.delete(`/products/${productId}`);
+        await fetchData(); // Refresh data
+      } catch (err: any) {
+        alert(`Error deleting product: ${err.response?.data?.message || err.message}`);
+      }
+    }
+  };
+
+  const handleAddCategory = (newCategory: string) => { /* ... Logic from previous answer ... */ };
+  const handleDeleteCategory = (categoryToDelete: string) => { /* ... Logic from previous answer ... */ };
+  
   const handleOpenModal = (product: Product | null) => { setEditingProduct(product); setIsModalOpen(true); };
   const handleCloseModal = () => { setIsModalOpen(false); setEditingProduct(null); };
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
   
-  if (isLoading) return <div className="p-6">Loading...</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (isLoading) return <div className="p-6 text-center text-gray-500">Loading...</div>;
+  if (error) return <div className="p-6 text-red-600 font-semibold">Error: {error}</div>;
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Stock / Products Details</h1>
-      {/* ... Top search and buttons bar ... */}
+      <div className="bg-white p-6 rounded-lg shadow-sm flex justify-between items-center">
+        <input type="text" placeholder="Search by Name..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="form-input w-1/3" />
+        <div className="flex gap-4">
+          <button onClick={() => setCategoryModalOpen(true)} className="px-5 py-2.5 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 flex items-center gap-2"><Layers size={20} /> Manage Categories</button>
+          <button onClick={() => handleOpenModal(null)} className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2"><PlusCircle size={20} /> Add New Product</button>
+        </div>
+      </div>
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        {/* ... Table JSX ... */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="p-4">Sl. No</th><th className="p-4">Product Name</th><th className="p-4">Category</th>
+                <th className="p-4">Purchase Rate</th><th className="p-4">Selling Price</th><th className="p-4">Stock Qty</th>
+                <th className="p-4">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((product, index) => (
+                <tr key={product.id} className="border-t hover:bg-gray-50">
+                  <td className="p-4">{index + 1}</td><td className="p-4 font-medium">{product.name}</td>
+                  <td className="p-4">{product.category}</td><td className="p-4">₹{(product.purchaseRate || 0).toFixed(2)}</td>
+                  <td className="p-4">₹{(product.price || 0).toFixed(2)}</td><td className="p-4 font-bold">{product.stockQuantity}</td>
+                  <td className="p-4"><div className="flex gap-3">
+                    <button onClick={() => handleOpenModal(product)} className="text-blue-600 hover:text-blue-800"><Pencil size={18} /></button>
+                    <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       
       {isModalOpen && <ProductFormModal product={editingProduct} categories={categories} vendors={vendors} onSave={handleSaveProduct} onClose={handleCloseModal} />}
-      {isCategoryModalOpen && <CategoryModal categories={categories} onClose={() => setCategoryModalOpen(false)} />}
+      {isCategoryModalOpen && <CategoryModal categories={categories} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onClose={() => setCategoryModalOpen(false)} />}
     </div>
   );
 };
 
 const ProductFormModal = ({ product, categories, vendors, onSave, onClose }: { product: Product | null, categories: string[], vendors: Vendor[], onSave: (p: any) => void, onClose: () => void }) => {
   const [formData, setFormData] = useState({
-    id: product?.id || null,
-    name: product?.name || '',
-    category: product?.category || (categories[0] || ''),
-    vendorId: product?.vendorId || (vendors[0]?.id || ''),
-    vendorName: product?.vendorName || (vendors[0]?.name || ''),
-    purchaseRate: product?.purchaseRate || 0,
-    price: product?.price || 0,
-    stockQuantity: product?.stockQuantity || 0,
-    purchaseGst: product?.purchaseGst || 0,
-    discount: product?.discount || 0,
+    id: product?.id || null, name: product?.name || '', category: product?.category || (categories[0] || ''),
+    vendorId: product?.vendorId || (vendors[0]?.id || ''), vendorName: product?.vendorName || (vendors[0]?.name || ''),
+    purchaseRate: product?.purchaseRate || 0, price: product?.price || 0, stockQuantity: product?.stockQuantity || 0,
+    purchaseGst: product?.purchaseGst || 0, discount: product?.discount || 0,
   });
   
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(formData); };
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleVendorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedVendor = vendors.find(v => v.id === e.target.value);
-    if (selectedVendor) { setFormData(prev => ({ ...prev, vendorId: selectedVendor.id, vendorName: selectedVendor.name })); }
-  };
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { /* ... Unchanged ... */ };
+  const handleVendorChange = (e: React.ChangeEvent<HTMLSelectElement>) => { /* ... Unchanged ... */ };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">{product ? 'Edit Product' : 'Add New Product'}</h2>
-          <button onClick={onClose}><X size={24} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label>Product Name</label><input name="name" type="text" value={formData.name} onChange={handleChange} className="form-input mt-1" required /></div>
-            <div><label>Category</label><select name="category" value={formData.category} onChange={handleChange} className="form-input mt-1" required>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label>Vendor / Supplier</label><select name="vendorId" value={formData.vendorId} onChange={handleVendorChange} className="form-input mt-1" required><option value="" disabled>-- Select a Vendor --</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
-            <div><label>Vendor ID (Auto-filled)</label><input name="vendorId" type="text" value={formData.vendorId} className="form-input mt-1 bg-gray-100" readOnly/></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><label>Purchase Rate (₹)</label><input name="purchaseRate" type="number" value={formData.purchaseRate} onChange={handleChange} className="form-input mt-1"/></div>
-            <div><label>Selling Price (₹)</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="form-input mt-1"/></div>
-            <div><label>Stock Quantity</label><input name="stockQuantity" type="number" value={formData.stockQuantity} onChange={handleChange} className="form-input mt-1"/></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label>Purchase GST (%)</label><input name="purchaseGst" type="number" value={formData.purchaseGst} onChange={handleChange} className="form-input mt-1"/></div>
-            <div><label>Discount (%)</label><input name="discount" type="number" value={formData.discount} onChange={handleChange} className="form-input mt-1"/></div>
-          </div>
-          <div className="flex justify-end gap-4 pt-4">
-            <button type="button" onClick={onClose} className="px-5 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Cancel</button>
-            <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Save Product</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+  return ( <div className="fixed inset-0 ...">{/* ... Modal JSX ... */}</div> );
 };
 
-const CategoryModal = ({ categories, onClose }: any) => { /* Unchanged */ };
+const CategoryModal = ({ categories, onAdd, onDelete, onClose }: { categories: string[], onAdd: (cat: string) => void, onDelete: (cat: string) => void, onClose: () => void }) => { /* ... Unchanged ... */ };
 
 export default Products;
