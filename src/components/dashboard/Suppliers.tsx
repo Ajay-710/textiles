@@ -19,55 +19,55 @@ const Suppliers = () => {
   const [loading, setLoading] = useState(true);
 
   // --- Fetch Suppliers ---
-const fetchSuppliers = async () => {
-  try {
-    setLoading(true);
-    const res = await vendorService.get('/vendors/all');
-    const mapped = (res.data || []).map((v: any) => ({
-      id: v.id,
-      name: v.name,
-      contact: v.phone,
-      gst: v.gstin,
-      address: v.address,
-    }));
-    setSuppliers(mapped);
-  } catch (err) {
-    console.error('Failed to fetch suppliers:', err);
-    alert('Failed to fetch suppliers.');
-  } finally {
-    setLoading(false);
-  }
-};
+  const fetchSuppliers = async () => {
+    try {
+      setLoading(true);
+      const res = await vendorService.get('/vendors/all');
+      const mapped = (res.data || []).map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        contact: v.phone,
+        gst: v.gstin,
+        address: v.address,
+      }));
+      setSuppliers(mapped);
+    } catch (err) {
+      console.error('Failed to fetch suppliers:', err);
+      alert('Failed to fetch suppliers.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchSuppliers();
   }, []);
 
   // --- Add or Update Supplier ---
-const handleSaveSupplier = async (supplier: Omit<Supplier, 'id'> & { id?: string }) => {
-  try {
-    const payload = {
-      name: supplier.name,
-      phone: supplier.contact,
-      address: supplier.address,
-      gstin: supplier.gst,
-    };
+  const handleSaveSupplier = async (supplier: Omit<Supplier, 'id'> & { id?: string }) => {
+    try {
+      const payload = {
+        name: supplier.name,
+        phone: supplier.contact,
+        address: supplier.address,
+        gstin: supplier.gst,
+      };
 
-    if (supplier.id) {
-      await vendorService.patch(`/vendors/update/${supplier.id}`, payload);
-      alert('Supplier updated successfully!');
-    } else {
-      await vendorService.post('/vendors/add', payload);
-      alert('Supplier added successfully!');
+      if (supplier.id) {
+        await vendorService.patch(`/vendors/update/${supplier.id}`, payload);
+        alert('Supplier updated successfully!');
+      } else {
+        await vendorService.post('/vendors/add', payload);
+        alert('Supplier added successfully!');
+      }
+
+      fetchSuppliers();
+      handleCloseModal();
+    } catch (err: any) {
+      console.error('Error saving supplier:', err);
+      alert(err.response?.data?.error || 'Failed to save supplier.');
     }
-
-    fetchSuppliers();
-    handleCloseModal();
-  } catch (err: any) {
-    console.error('Error saving supplier:', err);
-    alert(err.response?.data?.error || 'Failed to save supplier.');
-  }
-};
+  };
 
   // --- Delete Supplier ---
   const handleDeleteSupplier = async (supplierId: string) => {
@@ -128,43 +128,44 @@ const handleSaveSupplier = async (supplier: Omit<Supplier, 'id'> & { id?: string
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="p-4">S.No</th>
-                  <th className="p-4">Supplier ID</th>
-                  <th className="p-4">Supplier Name</th>
-                  <th className="p-4">Contact No.</th>
-                  <th className="p-4">GST Number</th>
-                  <th className="p-4">Address</th>
-                  <th className="p-4">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="border-t hover:bg-gray-50">
-                    <td className="p-4 font-mono">{supplier.id}</td>
-                    <td className="p-4 font-medium">{supplier.name}</td>
-                    <td className="p-4">{supplier.contact}</td>
-                    <td className="p-4">{supplier.gst}</td>
-                    <td className="p-4">{supplier.address}</td>
-                    <td className="p-4">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleOpenModal(supplier)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSupplier(supplier.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+  <tr>
+    <th className="p-4">S.No</th>
+    <th className="p-4">Supplier Name</th>  {/* Moved before ID */}
+    <th className="p-4">Supplier ID</th>
+    <th className="p-4">Contact No.</th>
+    <th className="p-4">GST Number</th>
+    <th className="p-4">Address</th>
+    <th className="p-4">Action</th>
+  </tr>
+</thead>
+<tbody>
+  {filteredSuppliers.map((supplier, index) => (
+    <tr key={supplier.id} className="border-t hover:bg-gray-50">
+      <td className="p-4">{index + 1}</td>
+      <td className="p-4 font-medium">{supplier.name}</td> {/* Name first */}
+      <td className="p-4 font-mono">{supplier.id}</td>      {/* ID second */}
+      <td className="p-4">{supplier.contact}</td>
+      <td className="p-4">{supplier.gst}</td>
+      <td className="p-4">{supplier.address}</td>
+      <td className="p-4">
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleOpenModal(supplier)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteSupplier(supplier.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
             </table>
           </div>
         )}

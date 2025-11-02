@@ -57,14 +57,12 @@ const Billing: React.FC = () => {
 
     try {
       setLoading(true);
-      
 
-    // Pad barcode if needed
-    const formattedBarcode = barcode.padStart(7, "0");
+      const formattedBarcode = barcode.padStart(7, "0");
 
-    
- 
-      const res = await billingService.get(`/billing/product/${encodeURIComponent(formattedBarcode)}`);
+      const res = await billingService.get(
+        `/billing/product/${encodeURIComponent(formattedBarcode)}`
+      );
       const product = res.data;
 
       const newItem: BillItem = {
@@ -108,7 +106,7 @@ const Billing: React.FC = () => {
 
   const totalAmount = items.reduce((acc, item) => acc + item.total, 0);
 
-  // ✅ Save Bill
+  // Save Bill
   const handleSaveBill = async () => {
     if (!items.length) return alert("Add at least one item!");
 
@@ -140,7 +138,7 @@ const Billing: React.FC = () => {
     }
   };
 
-  // ✅ Fixed Hold Bill Logic
+  // Hold Bill
   const handleHoldBill = async () => {
     if (!items.length) {
       alert("No items to hold!");
@@ -169,14 +167,11 @@ const Billing: React.FC = () => {
         createdAt: new Date(),
       };
 
-      console.log("Sending hold bill data:", billData);
-
       const res = await billingService.post("/billing/puthold", billData);
 
       if (res.status === 200 || res.status === 201) {
         alert("🟡 Bill placed on hold!");
         await fetchHoldBills();
-        // Delay reset to avoid null barcode triggering unwanted GET
         setTimeout(() => handleReset(), 300);
       } else {
         alert("Failed to hold bill. Please try again.");
@@ -227,11 +222,11 @@ const Billing: React.FC = () => {
         <h4>Customer: ${customerName} | ${customerPhone}</h4>
         <p><strong>Payment Method:</strong> ${paymentMethod}</p>
         <table border="1" cellspacing="0" cellpadding="6" width="100%">
-          <tr><th>Product </th><th>Qty</th><th>Price</th><th>Total</th></tr>
+          <tr><th>SN.</th><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
           ${items
             .map(
-              (i) =>
-                `<tr><td>${i.name}</td><td>${i.qty}</td><td>${i.price}</td><td>${i.total}</td></tr>`
+              (i, idx) =>
+                `<tr><td>${idx + 1}</td><td>${i.name}</td><td>${i.qty}</td><td>${i.price}</td><td>${i.total}</td></tr>`
             )
             .join("")}
         </table>
@@ -247,7 +242,8 @@ const Billing: React.FC = () => {
   // Export Excel
   const exportToExcel = () => {
     const wb = utils.book_new();
-    const data = items.map((i) => ({
+    const data = items.map((i, idx) => ({
+      SN: idx + 1,
       Customer: customerName,
       Phone: customerPhone,
       Payment: paymentMethod,
@@ -303,48 +299,50 @@ const Billing: React.FC = () => {
         transition={{ delay: 0.2 }}
       >
         <table className="w-full text-sm text-gray-700">
-          <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
-            <tr>
-              <th className="p-3">Product ID</th>
-              <th className="p-3">Product Name</th>
-              <th className="p-3">Price</th>
-              <th className="p-3">GST</th>
-              <th className="p-3">Discount</th>
-              <th className="p-3">Qty</th>
-              <th className="p-3">Total</th>
-              <th className="p-3">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <motion.tr
-                key={i.barcode}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="border-t hover:bg-blue-50/60 transition"
-              >
-                <td className="p-2">{i.barcode}</td>
-                <td className="p-2 font-medium">{i.name}</td>
-                <td className="p-2 text-center">₹{i.price}</td>
-                <td className="p-2 text-center">
-                  <input
-                    type="number"
-                    value={i.qty}
-                    min={1}
-                    onChange={(e) => handleQtyChange(i.barcode, Number(e.target.value))}
-                    className="border w-16 p-1 rounded text-center shadow-sm"
-                  />
-                </td>
-                <td className="p-2 text-center font-semibold">₹{i.total}</td>
-                <td
-                  className="p-2 text-red-500 cursor-pointer hover:text-red-700"
-                  onClick={() => handleRemoveItem(i.barcode)}
-                >
-                  ✖
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
+          <thead className="bg-gradient-to-r from-blue-100 to-indigo-100 text-sm text-gray-700">
+  <tr>
+    <th className="p-3 text-center">S. NO</th>
+    <th className="p-3 text-left">Product ID</th>
+    <th className="p-3 text-left">Product Name</th>
+    <th className="p-3 text-center">Price</th>
+    <th className="p-3 text-center">Qty</th>
+    <th className="p-3 text-center">Total</th>
+    <th className="p-3 text-center">Action</th>
+  </tr>
+</thead>
+<tbody>
+  {items.map((i, idx) => (
+    <motion.tr
+      key={i.barcode}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="border-t hover:bg-blue-50/60 transition"
+    >
+      <td className="p-2 text-center">{idx + 1}</td>
+      <td className="p-2 text-left font-mono">{i.barcode}</td>
+      <td className="p-2 text-left font-medium">{i.name}</td>
+      <td className="p-2 text-center">₹{i.price}</td>
+      <td className="p-2 text-center">
+        <input
+          type="number"
+          value={i.qty}
+          min={1}
+          onChange={(e) => handleQtyChange(i.barcode, Number(e.target.value))}
+          className="border w-16 p-1 rounded mx-auto text-center"
+        />
+      </td>
+      <td className="p-2 text-center font-semibold">₹{i.total}</td>
+      <td
+        className="p-2 text-center text-red-500 cursor-pointer hover:text-red-700"
+        onClick={() => handleRemoveItem(i.barcode)}
+      >
+        ✖
+      </td>
+    </motion.tr>
+  ))}
+</tbody>
+
+
         </table>
       </motion.div>
 

@@ -3,24 +3,22 @@ import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { reportService } from '@/lib/api';
 import { Download, ShoppingCart, TrendingUp, Truck } from 'lucide-react';
-import { utils, writeFile } from 'xlsx';
+import { utils, writeFile, read } from 'xlsx';
 
 // --- Data Structures ---
 interface PastBill {
   invoiceId: string;
   date: string;
-  items: any[];
+  supplierName: string;
   total: number;
   subTotal: number;
   discount: number;
-  supplierName: string;
 }
 interface PastPurchase {
   purchaseId: string;
   date: string;
-  items: any[];
-  total: number;
   supplierName: string;
+  total: number;
 }
 interface ProfitData {
   invoiceId: string;
@@ -49,22 +47,23 @@ const Reports = () => {
       try {
         setIsLoading(true);
         setError(null);
+
+        // Request Excel as binary
         const response = await reportService.get(endpoint, {
           params: { startDate, endDate },
+          responseType: 'arraybuffer',
         });
 
-        if (!Array.isArray(response.data)) {
-          console.error('Invalid API response:', response.data);
-          setError('Invalid response from server.');
-          setFilteredData([]);
-          return;
-        }
+        // Parse Excel
+        const workbook = read(response.data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = utils.sheet_to_json(sheet);
 
-        setFilteredData(response.data);
+        setFilteredData(jsonData); // now an array
       } catch (err: any) {
         console.error('Error fetching report:', err);
-        setError(err.response?.data?.message || `Could not load ${activeTab} report.`);
-        setFilteredData([]);
+        setError(`Could not load ${activeTab} report.`);
       } finally {
         setIsLoading(false);
       }
@@ -81,16 +80,15 @@ const Reports = () => {
     return () => unsubscribe();
   }, [activeTab, startDate, endDate]);
 
-  // --- Export to Excel ---
   const handleExportToExcel = () => {
     if (!filteredData || filteredData.length === 0) return alert('No data to export');
+
     const ws = utils.json_to_sheet(filteredData);
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, `${activeTab}_report`);
     writeFile(wb, `${activeTab}_report.xlsx`);
   };
 
-  // --- Render Report Table ---
   const renderReportTable = () => {
     if (isLoading) return <div className="text-center py-10">Loading report...</div>;
     if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
@@ -153,7 +151,7 @@ const Reports = () => {
   );
 };
 
-// --- Tab Button ---
+// --- Helper Components ---
 const TabButton = ({ icon: Icon, label, isActive, onClick }: any) => (
   <button
     onClick={onClick}
@@ -165,16 +163,15 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }: any) => (
   </button>
 );
 
-// --- Tables ---
 const SalesReportTable = ({ data }: { data: PastBill[] }) => (
   <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-4">
     <table className="w-full text-left">
       <thead className="bg-gray-50 border-b">
         <tr>
           <th className="p-4">S.No</th>
+          <th className="p-4">Supplier Name</th>
           <th className="p-4">Invoice ID</th>
           <th className="p-4">Date</th>
-          <th className="p-4">Supplier Name</th>
           <th className="p-4">Total</th>
           <th className="p-4">Sub Total</th>
           <th className="p-4">Discount</th>
@@ -182,14 +179,14 @@ const SalesReportTable = ({ data }: { data: PastBill[] }) => (
       </thead>
       <tbody>
         {data.map((bill, index) => (
-          <tr key={bill.invoiceId} className="border-t hover:bg-gray-50">
+          <tr key={index} className="border-t hover:bg-gray-50">
             <td className="p-4">{index + 1}</td>
+            <td className="p-4">{bill.supplierName}</td>
             <td className="p-4 font-mono">{bill.invoiceId}</td>
             <td className="p-4">{new Date(bill.date).toLocaleDateString()}</td>
-            <td className="p-4">{bill.supplierName}</td>
-            <td className="p-4">₹{bill.total.toFixed(2)}</td>
-            <td className="p-4">₹{bill.subTotal.toFixed(2)}</td>
-            <td className="p-4">₹{bill.discount.toFixed(2)}</td>
+            <td className="p-4">₹{bill.total}</td>
+            <td className="p-4">₹{bill.subTotal}</td>
+            <td className="p-4">₹{bill.discount}</td>
           </tr>
         ))}
       </tbody>
@@ -212,13 +209,13 @@ const ProfitReportTable = ({ data }: { data: ProfitData[] }) => (
       </thead>
       <tbody>
         {data.map((d, index) => (
-          <tr key={d.invoiceId} className="border-t hover:bg-gray-50">
+          <tr key={index} className="border-t hover:bg-gray-50">
             <td className="p-4">{index + 1}</td>
             <td className="p-4 font-mono">{d.invoiceId}</td>
             <td className="p-4">{new Date(d.date).toLocaleDateString()}</td>
-            <td className="p-4">₹{d.totalSale.toFixed(2)}</td>
-            <td className="p-4">₹{d.totalCost.toFixed(2)}</td>
-            <td className="p-4">₹{d.netProfit.toFixed(2)}</td>
+            <td className="p-4">₹{d.totalSale}</td>
+            <td className="p-4">₹{d.totalCost}</td>
+            <td className="p-4">₹{d.netProfit}</td>
           </tr>
         ))}
       </tbody>
@@ -232,20 +229,20 @@ const PurchaseReportTable = ({ data }: { data: PastPurchase[] }) => (
       <thead className="bg-gray-50 border-b">
         <tr>
           <th className="p-4">S.No</th>
+          <th className="p-4">Supplier Name</th>
           <th className="p-4">Purchase ID</th>
           <th className="p-4">Date</th>
-          <th className="p-4">Supplier Name</th>
           <th className="p-4">Total</th>
         </tr>
       </thead>
       <tbody>
         {data.map((purchase, index) => (
-          <tr key={purchase.purchaseId} className="border-t hover:bg-gray-50">
+          <tr key={index} className="border-t hover:bg-gray-50">
             <td className="p-4">{index + 1}</td>
+            <td className="p-4">{purchase.supplierName}</td>
             <td className="p-4 font-mono">{purchase.purchaseId}</td>
             <td className="p-4">{new Date(purchase.date).toLocaleDateString()}</td>
-            <td className="p-4">{purchase.supplierName}</td>
-            <td className="p-4">₹{purchase.total.toFixed(2)}</td>
+            <td className="p-4">₹{purchase.total}</td>
           </tr>
         ))}
       </tbody>
