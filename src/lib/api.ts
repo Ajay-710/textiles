@@ -26,14 +26,14 @@ const authInterceptor = async (config: any) => {
   return config;
 };
 
-// --- Apply the interceptor to every instance ---
+
 productService.interceptors.request.use(authInterceptor);
 billingService.interceptors.request.use(authInterceptor);
 vendorService.interceptors.request.use(authInterceptor);
 reportService.interceptors.request.use(authInterceptor);
 // -----------------------------------------------
 
-// --- Export each service instance for use in your components ---
+
 export {
   productService,
   billingService,
