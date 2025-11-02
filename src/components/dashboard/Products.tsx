@@ -77,21 +77,34 @@ const Products = () => {
   }, []);
 
   const handleSaveProduct = async (formData: any) => {
-    const isEditing = !!formData.id;
-    try {
-      if (isEditing) {
-        // Simulated update: delete + re-add
-        await productService.delete(`/products/delete/${formData.id}`);
-        await productService.post('/products/add', formData);
-      } else {
-        await productService.post('/products/add', formData);
-      }
-      await fetchData();
-      setIsModalOpen(false);
-    } catch (err: any) {
-      alert(`Error saving product: ${err.response?.data?.error || err.message}`);
-    }
+  const isEditing = !!formData.id;
+
+  // Generate timestamps
+  const now = new Date().toISOString();
+
+  // Automatically add or update timestamps
+  const payload = {
+    ...formData,
+    createdAt: isEditing ? formData.createdAt || now : now, // keep old date if editing
+    updatedAt: now, // always update timestamp
   };
+
+  try {
+    if (isEditing) {
+      // If editing, simulate update by delete + re-add
+      await productService.delete(`/products/delete/${formData.id}`);
+      await productService.post('/products/add', payload);
+    } else {
+      await productService.post('/products/add', payload);
+    }
+
+    await fetchData();
+    setIsModalOpen(false);
+  } catch (err: any) {
+    alert(`Error saving product: ${err.response?.data?.error || err.message}`);
+  }
+};
+
 
   const handleDeleteProduct = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
@@ -226,64 +239,79 @@ useEffect(() => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-4">S.No</th>
-                <th className="p-4">Product ID</th>
-                <th className="p-4">Name</th>
-                <th className="p-4">Barcode</th>
-                <th className="p-4">Category</th>
-                <th className="p-4">Price</th>
-                <th className="p-4">Stock</th>
-                <th className="p-4">Action</th>
-              </tr>
-            </thead>
+  <tr>
+    <th className="p-4">S.No</th>
+    <th className="p-4">Date</th>
+    <th className="p-4">Supplier Name</th>
+    <th className="p-4">Supplier ID</th>
+    <th className="p-4">Product Name</th>        {/* Moved before Product ID */}
+    <th className="p-4">Product ID</th>  {/* Moved after Name */}
+    <th className="p-4">Barcode</th>
+    <th className="p-4">Category</th>
+    <th className="p-4">Price</th>
+    <th className="p-4">Stock</th>
+    <th className="p-4">Action</th>
+  </tr>
+</thead>
+
+
             <tbody>
-              {filteredProducts.map((product, index) => (
-                <tr key={product.id} className="border-t hover:bg-gray-50">
-                  <td className="p-4">{index + 1}</td>
-                  <td className="p-4 font-mono">{product.id}</td>
-                  <td className="p-4 font-medium">{product.name}</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">{product.barcode}</span>
-                      {product.barcodeImageUrl && (
-                        <button
-                          onClick={() =>
-                            handleDownloadBarcode(
-                              product.barcodeImageUrl!,
-                              product.barcode
-                            )
-                          }
-                          title="Download Barcode"
-                          className="text-gray-400 hover:text-blue-600"
-                        >
-                          <Download size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-4">{product.category}</td>
-                  <td className="p-4">₹{product.price.toFixed(2)}</td>
-                  <td className="p-4 font-bold">{product.stockQuantity}</td>
-                  <td className="p-4">
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => handleOpenModal(product)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+  {filteredProducts.map((product, index) => (
+    <tr key={product.id} className="border-t hover:bg-gray-50">
+      <td className="p-4">{index + 1}</td>
+      <td className="p-4">
+        {product.createdAt
+          ? new Date(product.createdAt).toLocaleDateString('en-GB')
+          : '-'}
+      </td>
+      <td className="p-4 font-medium">{product.vendorName || '-'}</td> {/* Supplier Name */}
+      <td className="p-4 font-mono">{product.vendorId || '-'}</td>    {/* Supplier ID */}
+      <td className="p-4 font-medium">{product.name}</td>             {/* Name */}
+      <td className="p-4 font-mono">{product.id}</td>                {/* Product ID */}
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          <span className="font-mono">{product.barcode}</span>
+          {product.barcodeImageUrl && (
+            <button
+              onClick={() =>
+                handleDownloadBarcode(product.barcodeImageUrl!, product.barcode)
+              }
+              title="Download Barcode"
+              className="text-gray-400 hover:text-blue-600"
+            >
+              <Download size={16} />
+            </button>
+          )}
+        </div>
+      </td>
+      <td className="p-4">{product.category}</td>
+      <td className="p-4">₹{product.price.toFixed(2)}</td>
+      <td className="p-4 font-bold">{product.stockQuantity}</td>
+      <td className="p-4">
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleOpenModal(product)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteProduct(product.id)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
+
+
+
+
+
+
           </table>
         </div>
       </div>
@@ -405,7 +433,7 @@ const ProductFormModal = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label>Vendor / Supplier</label>
+              <label>Supplier Name</label>
               <select
                 name="vendorId"
                 value={formData.vendorId}
@@ -414,7 +442,7 @@ const ProductFormModal = ({
                 required
               >
                 <option value="" disabled>
-                  -- Select a Vendor --
+                  -- Select a Supplier --
                 </option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -424,7 +452,7 @@ const ProductFormModal = ({
               </select>
             </div>
             <div>
-              <label>Vendor ID (Auto-filled)</label>
+              <label>Supplier ID (Auto-filled)</label>
               <input
                 name="vendorId"
                 type="text"

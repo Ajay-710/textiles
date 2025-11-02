@@ -129,6 +129,7 @@ const handleSaveSupplier = async (supplier: Omit<Supplier, 'id'> & { id?: string
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="p-4">S.No</th>
                   <th className="p-4">Supplier ID</th>
                   <th className="p-4">Supplier Name</th>
                   <th className="p-4">Contact No.</th>

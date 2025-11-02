@@ -24,6 +24,8 @@ interface Product {
 interface BillItem extends Product {
   qty: number;
   total: number;
+  GST: number;
+  Discount: number;
 }
 
 const Billing: React.FC = () => {
@@ -69,6 +71,8 @@ const Billing: React.FC = () => {
         barcode: product.barcode,
         name: product.name,
         price: product.price,
+        GST: product.purchaseGst || 0,
+        Discount: product.discount || 0,
         quantity: product.quantity ?? 1,
         qty: 1,
         total: product.price,
@@ -223,7 +227,7 @@ const Billing: React.FC = () => {
         <h4>Customer: ${customerName} | ${customerPhone}</h4>
         <p><strong>Payment Method:</strong> ${paymentMethod}</p>
         <table border="1" cellspacing="0" cellpadding="6" width="100%">
-          <tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+          <tr><th>Product </th><th>Qty</th><th>Price</th><th>Total</th></tr>
           ${items
             .map(
               (i) =>
@@ -274,7 +278,7 @@ const Billing: React.FC = () => {
           <PackageSearch className="absolute left-3 top-2.5 text-gray-400" />
           <input
             type="text"
-            placeholder="Scan / Enter Barcode"
+            placeholder="Scan / Enter code"
             value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddProduct()}
@@ -301,9 +305,11 @@ const Billing: React.FC = () => {
         <table className="w-full text-sm text-gray-700">
           <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
             <tr>
-              <th className="p-3">Barcode</th>
-              <th className="p-3">Product</th>
+              <th className="p-3">Product ID</th>
+              <th className="p-3">Product Name</th>
               <th className="p-3">Price</th>
+              <th className="p-3">GST</th>
+              <th className="p-3">Discount</th>
               <th className="p-3">Qty</th>
               <th className="p-3">Total</th>
               <th className="p-3">Action</th>
