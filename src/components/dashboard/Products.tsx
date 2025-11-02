@@ -227,7 +227,7 @@ useEffect(() => {
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="p-4">#</th>
+                <th className="p-4">Serial No</th>
                 <th className="p-4">Product ID</th>
                 <th className="p-4">Name</th>
                 <th className="p-4">Barcode</th>

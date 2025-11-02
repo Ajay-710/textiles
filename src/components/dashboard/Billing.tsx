@@ -55,7 +55,14 @@ const Billing: React.FC = () => {
 
     try {
       setLoading(true);
-      const res = await billingService.get(`/billing/product/${encodeURIComponent(barcode)}`);
+      
+
+    // Pad barcode if needed
+    const formattedBarcode = barcode.padStart(7, "0");
+
+    
+ 
+      const res = await billingService.get(`/billing/product/${encodeURIComponent(formattedBarcode)}`);
       const product = res.data;
 
       const newItem: BillItem = {
