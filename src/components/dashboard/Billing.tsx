@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { billingService } from "@/lib/api";
 import { utils, writeFile } from "xlsx";
-import { Printer, Save, RotateCcw, Pause, Play, FileSpreadsheet } from "lucide-react";
+import {
+  Printer,
+  Save,
+  RotateCcw,
+  Pause,
+  FileSpreadsheet,
+  ShoppingCart,
+  User,
+  Phone,
+  PackageSearch,
+} from "lucide-react";
+import { motion } from "framer-motion";
 
 interface Product {
   barcode: string;
@@ -9,7 +20,6 @@ interface Product {
   price: number;
   quantity: number;
 }
-
 interface BillItem extends Product {
   qty: number;
   total: number;
@@ -23,7 +33,7 @@ const Billing: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [holds, setHolds] = useState<any[]>([]);
 
-  // --- Fetch held bills from API ---
+  // Fetch held bills
   const fetchHoldBills = async () => {
     try {
       const res = await billingService.get("/billing/hold");
@@ -32,17 +42,16 @@ const Billing: React.FC = () => {
       console.error("Failed to fetch held bills:", err);
     }
   };
-
   useEffect(() => {
     fetchHoldBills();
   }, []);
 
-  // --- Add product by barcode ---
+  // Add Product
   const handleAddProduct = async () => {
-    if (!barcode.trim()) return;
+    if (!barcode || barcode.trim() === "" || barcode === "null") return;
     try {
       setLoading(true);
-      const res = await billingService.get(`/billing/product/${barcode}`);
+      const res = await billingService.get(`/billing/product/${encodeURIComponent(barcode)}`);
       const product = res.data;
 
       const newItem: BillItem = {
@@ -64,7 +73,6 @@ const Billing: React.FC = () => {
           );
         return [...prev, newItem];
       });
-
       setBarcode("");
     } catch (err: any) {
       alert(err.response?.data?.error || "Product not found!");
@@ -85,7 +93,7 @@ const Billing: React.FC = () => {
 
   const totalAmount = items.reduce((acc, item) => acc + item.total, 0);
 
-  // --- Save Bill ---
+  // Save Bill
   const handleSaveBill = async () => {
     if (!items.length) return alert("Add at least one item!");
     try {
@@ -107,7 +115,7 @@ const Billing: React.FC = () => {
     }
   };
 
-  // --- Hold Bill ---
+  // Hold Bill
   const handleHoldBill = async () => {
     if (!items.length) return alert("No items to hold!");
     try {
@@ -123,14 +131,14 @@ const Billing: React.FC = () => {
       };
       await billingService.post("/billing/puthold", billData);
       alert("🟡 Bill placed on hold!");
-      handleReset();
       fetchHoldBills();
+      handleReset();
     } catch (err: any) {
       alert(err.response?.data?.error || "Failed to hold bill.");
     }
   };
 
-  // --- Retrieve Hold ---
+  // Retrieve Hold
   const handleRetrieveHold = async (bill: any) => {
     setItems(
       bill.items.map((i: any) => ({
@@ -146,7 +154,7 @@ const Billing: React.FC = () => {
     setCustomerPhone(bill.customerPhone);
   };
 
-  // --- Reset / Clear ---
+  // Reset Bill
   const handleReset = () => {
     setItems([]);
     setBarcode("");
@@ -154,14 +162,14 @@ const Billing: React.FC = () => {
     setCustomerPhone("");
   };
 
-  // --- Print Bill ---
+  // Print Bill
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     const billHTML = `
       <html>
       <head><title>Bill - ${customerName}</title></head>
-      <body>
+      <body style="font-family:sans-serif;">
         <h2 style="text-align:center;">T.Gopi Textiles</h2>
         <h4>Customer: ${customerName} | ${customerPhone}</h4>
         <table border="1" cellspacing="0" cellpadding="6" width="100%">
@@ -182,7 +190,7 @@ const Billing: React.FC = () => {
     printWindow.print();
   };
 
-  // --- Export Excel ---
+  // Export Excel
   const exportToExcel = () => {
     const wb = utils.book_new();
     const data = items.map((i) => ({
@@ -199,129 +207,160 @@ const Billing: React.FC = () => {
   };
 
   return (
-    <div className="p-8 bg-white shadow rounded-xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">🧾 Billing Panel</h1>
+    <motion.div
+      className="p-8 bg-gradient-to-br from-indigo-50 to-blue-100 shadow-2xl rounded-2xl space-y-8"
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+    >
+      <h1 className="text-3xl font-extrabold text-blue-900 flex items-center gap-3">
+        <ShoppingCart className="text-blue-600" /> Smart Billing Panel
+      </h1>
 
       {/* Barcode Input */}
-      <div className="flex space-x-3">
-        <input
-          type="text"
-          placeholder="Scan / Enter Barcode"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddProduct()}
-          className="border p-2 w-64 rounded-md shadow-sm focus:ring-2 focus:ring-blue-400"
-        />
-        <button
+      <div className="flex items-center space-x-3">
+        <div className="relative w-72">
+          <PackageSearch className="absolute left-3 top-2.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Scan / Enter Barcode"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddProduct()}
+            className="pl-10 pr-4 py-2 w-full border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-sm bg-white"
+          />
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={handleAddProduct}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
           disabled={loading}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 shadow-md"
         >
-          {loading ? "Adding..." : "Add"}
-        </button>
+          {loading ? "Adding..." : "Add Product"}
+        </motion.button>
       </div>
 
-      {/* Table */}
-      <table className="w-full border rounded-lg overflow-hidden">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="p-2">Barcode</th>
-            <th className="p-2">Product</th>
-            <th className="p-2">Price</th>
-            <th className="p-2">Qty</th>
-            <th className="p-2">Total</th>
-            <th className="p-2">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((i) => (
-            <tr key={i.barcode} className="border-t">
-              <td className="p-2">{i.barcode}</td>
-              <td className="p-2">{i.name}</td>
-              <td className="p-2">₹{i.price}</td>
-              <td className="p-2">
-                <input
-                  type="number"
-                  value={i.qty}
-                  min={1}
-                  onChange={(e) =>
-                    handleQtyChange(i.barcode, Number(e.target.value))
-                  }
-                  className="border w-16 p-1 rounded text-center"
-                />
-              </td>
-              <td className="p-2">₹{i.total}</td>
-              <td className="p-2 text-red-500 cursor-pointer" onClick={() => handleRemoveItem(i.barcode)}>
-                ✖
-              </td>
+      {/* Product Table */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+        <table className="w-full text-sm text-gray-700">
+          <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
+            <tr>
+              <th className="p-3">Barcode</th>
+              <th className="p-3">Product</th>
+              <th className="p-3">Price</th>
+              <th className="p-3">Qty</th>
+              <th className="p-3">Total</th>
+              <th className="p-3">Action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((i) => (
+              <motion.tr
+                key={i.barcode}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t hover:bg-blue-50"
+              >
+                <td className="p-2">{i.barcode}</td>
+                <td className="p-2 font-medium">{i.name}</td>
+                <td className="p-2 text-center">₹{i.price}</td>
+                <td className="p-2 text-center">
+                  <input
+                    type="number"
+                    value={i.qty}
+                    min={1}
+                    onChange={(e) => handleQtyChange(i.barcode, Number(e.target.value))}
+                    className="border w-16 p-1 rounded text-center shadow-sm"
+                  />
+                </td>
+                <td className="p-2 text-center font-semibold">₹{i.total}</td>
+                <td
+                  className="p-2 text-red-500 cursor-pointer hover:text-red-700"
+                  onClick={() => handleRemoveItem(i.barcode)}
+                >
+                  ✖
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Totals */}
-      <div className="text-right text-lg font-semibold text-gray-800">
-        Total: ₹{totalAmount.toFixed(2)}
+      <div className="flex justify-between items-center">
+        <div className="text-2xl font-bold text-blue-900">
+          Total: ₹{totalAmount.toFixed(2)}
+        </div>
       </div>
 
       {/* Customer Info */}
       <div className="flex space-x-4">
-        <input
-          type="text"
-          placeholder="Customer Name"
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-          className="border p-2 rounded-md w-64"
-        />
-        <input
-          type="text"
-          placeholder="Customer Phone"
-          value={customerPhone}
-          onChange={(e) => setCustomerPhone(e.target.value)}
-          className="border p-2 rounded-md w-64"
-        />
+        <div className="relative w-64">
+          <User className="absolute left-3 top-2.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Customer Name"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            className="pl-10 pr-4 py-2 border rounded-lg w-full focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="relative w-64">
+          <Phone className="absolute left-3 top-2.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Customer Phone"
+            value={customerPhone}
+            onChange={(e) => setCustomerPhone(e.target.value)}
+            className="pl-10 pr-4 py-2 border rounded-lg w-full focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4 pt-4">
-        <button onClick={handleSaveBill} className="bg-green-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700">
+      {/* Actions */}
+      <div className="flex flex-wrap gap-4 pt-6">
+        <motion.button whileHover={{ scale: 1.05 }} onClick={handleSaveBill} className="bg-green-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow">
           <Save size={18} /> Buy
-        </button>
-        <button onClick={handleHoldBill} className="bg-yellow-500 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600">
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.05 }} onClick={handleHoldBill} className="bg-yellow-500 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600 shadow">
           <Pause size={18} /> Hold
-        </button>
-        <button onClick={handlePrint} className="bg-indigo-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700">
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.05 }} onClick={handlePrint} className="bg-indigo-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 shadow">
           <Printer size={18} /> Print
-        </button>
-        <button onClick={exportToExcel} className="bg-gray-700 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-800">
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.05 }} onClick={exportToExcel} className="bg-gray-700 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-800 shadow">
           <FileSpreadsheet size={18} /> Excel
-        </button>
-        <button onClick={handleReset} className="bg-red-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700">
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.05 }} onClick={handleReset} className="bg-red-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 shadow">
           <RotateCcw size={18} /> Reset
-        </button>
+        </motion.button>
       </div>
 
       {/* Held Bills */}
       {holds.length > 0 && (
-        <div className="mt-6 border-t pt-4">
-          <h2 className="text-lg font-semibold mb-3">🟡 Held Bills</h2>
-          <div className="grid md:grid-cols-2 gap-3">
+        <div className="mt-8 border-t pt-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            🟡 Held Bills
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {holds.map((h) => (
-              <div
+              <motion.div
                 key={h.id}
                 onClick={() => handleRetrieveHold(h)}
-                className="p-3 border rounded-lg bg-yellow-50 hover:bg-yellow-100 cursor-pointer"
+                whileHover={{ scale: 1.03 }}
+                className="p-4 border rounded-xl bg-yellow-50 hover:bg-yellow-100 cursor-pointer shadow-sm transition"
               >
-                <div className="font-semibold">{h.customerName || "Unnamed"}</div>
+                <div className="font-bold text-gray-800">{h.customerName || "Unnamed"}</div>
                 <div className="text-sm text-gray-600">
                   {h.items?.length} items — ₹{h.totalAmount}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 
