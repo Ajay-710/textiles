@@ -1,337 +1,327 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
-import { Trash2, Plus, Minus } from 'lucide-react';
-import { BillToPrint } from '@/components/BillToPrint';
-import { auth } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { productService, billingService } from '@/lib/api';
+import React, { useState, useEffect } from "react";
+import { billingService } from "@/lib/api";
+import { utils, writeFile } from "xlsx";
+import { Printer, Save, RotateCcw, Pause, Play, FileSpreadsheet } from "lucide-react";
 
 interface Product {
-  id: string;
+  barcode: string;
   name: string;
   price: number;
-  stockQuantity: number;
-  gst: number;
-  purchaseRate: number;
+  quantity: number;
 }
 
-interface BillItem extends Omit<Product, 'stockQuantity'> {
-  billQty: number;
-  discount: number;
-}
-
-interface PastBill {
-  invoiceId: string;
-  date: string;
-  items: (BillItem & { subtotal: number })[];
+interface BillItem extends Product {
+  qty: number;
   total: number;
-  subTotal: number;
-  discount: number;
-  customerName: string;
 }
 
-interface HeldBill {
-  id: string;
-  name: string;
-  items: BillItem[];
-  customerName: string;
-}
+const Billing: React.FC = () => {
+  const [barcode, setBarcode] = useState("");
+  const [items, setItems] = useState<BillItem[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [holds, setHolds] = useState<any[]>([]);
 
-const Billing = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pastBills, setPastBills] = useState<PastBill[]>([]);
-  const [billItems, setBillItems] = useState<BillItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [paymentMode, setPaymentMode] = useState('Cash');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // --- Fetch held bills from API ---
+  const fetchHoldBills = async () => {
+    try {
+      const res = await billingService.get("/billing/hold");
+      setHolds(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch held bills:", err);
+    }
+  };
 
-  const billRef = useRef<HTMLDivElement>(null);
-  const handlePrint = useReactToPrint({
-    content: () => billRef.current,
-  });
+  useEffect(() => {
+    fetchHoldBills();
+  }, []);
 
-  const fetchData = async () => {
+  // --- Add product by barcode ---
+  const handleAddProduct = async () => {
+    if (!barcode.trim()) return;
     try {
       setLoading(true);
-      setError(null);
-      const [p, b] = await Promise.allSettled([
-        productService.get('/products/all'),
-        billingService.get('/billing/all'),
-      ]);
-      setProducts(p.status === 'fulfilled' ? p.value.data || [] : []);
-      setPastBills(b.status === 'fulfilled' ? b.value.data || [] : []);
-    } catch {
-      setError('Unable to load data.');
+      const res = await billingService.get(`/billing/product/${barcode}`);
+      const product = res.data;
+
+      const newItem: BillItem = {
+        barcode: product.barcode,
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity ?? 1,
+        qty: 1,
+        total: product.price,
+      };
+
+      setItems((prev) => {
+        const existing = prev.find((i) => i.barcode === barcode);
+        if (existing)
+          return prev.map((i) =>
+            i.barcode === barcode
+              ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.price }
+              : i
+          );
+        return [...prev, newItem];
+      });
+
+      setBarcode("");
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Product not found!");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) fetchData();
-      else {
-        setError('You are not logged in.');
-        setLoading(false);
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  const clearBill = () => {
-    setBillItems([]);
-    setCustomerName('');
-    setCustomerPhone('');
-  };
-
-  const addProduct = (product: Product) => {
-    if (product.stockQuantity <= 0) return alert(`'${product.name}' is out of stock.`);
-    setBillItems((prev) => {
-      const exist = prev.find((i) => i.id === product.id);
-      if (exist) {
-        if (exist.billQty >= product.stockQuantity) {
-          alert(`Max stock for '${product.name}' reached.`);
-          return prev;
-        }
-        return prev.map((i) =>
-          i.id === product.id ? { ...i, billQty: i.billQty + 1 } : i
-        );
-      }
-      return [...prev, { ...product, billQty: 1, discount: 0 }];
-    });
-    setSearchTerm('');
-    setSearchResults([]);
-  };
-
-  const updateQty = (id: string, qty: number) => {
-    const p = products.find((x) => x.id === id);
-    if (!p) return;
-    if (qty > p.stockQuantity) return alert(`Max stock is ${p.stockQuantity}.`);
-    setBillItems((prev) =>
-      qty <= 0
-        ? prev.filter((i) => i.id !== id)
-        : prev.map((i) => (i.id === id ? { ...i, billQty: qty } : i))
+  const handleQtyChange = (barcode: string, qty: number) =>
+    setItems((prev) =>
+      prev.map((i) =>
+        i.barcode === barcode ? { ...i, qty, total: qty * i.price } : i
+      )
     );
+
+  const handleRemoveItem = (barcode: string) =>
+    setItems((prev) => prev.filter((i) => i.barcode !== barcode));
+
+  const totalAmount = items.reduce((acc, item) => acc + item.total, 0);
+
+  // --- Save Bill ---
+  const handleSaveBill = async () => {
+    if (!items.length) return alert("Add at least one item!");
+    try {
+      const billData = {
+        customerName,
+        customerPhone,
+        items: items.map((i) => ({
+          productBarcode: i.barcode,
+          quantity: i.qty,
+          total: i.total,
+        })),
+        totalAmount,
+      };
+      await billingService.post("/billing/create", billData);
+      alert("✅ Bill created successfully!");
+      handleReset();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to create bill.");
+    }
   };
 
-  const updateDiscount = (id: string, val: number) =>
-    setBillItems((prev) => prev.map((i) => (i.id === id ? { ...i, discount: val } : i)));
-
-  const totals = useMemo(() => {
-    let s = 0,
-      d = 0;
-    billItems.forEach((i) => {
-      s += i.billQty * i.price;
-      d += i.discount;
-    });
-    return { subTotal: s, discount: d, total: s - d };
-  }, [billItems]);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) return setSearchResults([]);
+  // --- Hold Bill ---
+  const handleHoldBill = async () => {
+    if (!items.length) return alert("No items to hold!");
     try {
-      const term = searchTerm.toLowerCase();
-      const res = products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(term) ||
-          p.id.toString().includes(term)
-      );
-      setSearchResults(res);
-    } catch {
-      setSearchResults([]);
+      const billData = {
+        customerName,
+        customerPhone,
+        items: items.map((i) => ({
+          productBarcode: i.barcode,
+          quantity: i.qty,
+          total: i.total,
+        })),
+        totalAmount,
+      };
+      await billingService.post("/billing/puthold", billData);
+      alert("🟡 Bill placed on hold!");
+      handleReset();
+      fetchHoldBills();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to hold bill.");
     }
-  }, [searchTerm, products]);
+  };
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>;
-  if (error) return <div className="p-6 text-red-500">{error}</div>;
+  // --- Retrieve Hold ---
+  const handleRetrieveHold = async (bill: any) => {
+    setItems(
+      bill.items.map((i: any) => ({
+        barcode: i.productBarcode,
+        name: i.productName,
+        price: i.price,
+        qty: i.quantity,
+        total: i.total,
+        quantity: i.quantity,
+      }))
+    );
+    setCustomerName(bill.customerName);
+    setCustomerPhone(bill.customerPhone);
+  };
+
+  // --- Reset / Clear ---
+  const handleReset = () => {
+    setItems([]);
+    setBarcode("");
+    setCustomerName("");
+    setCustomerPhone("");
+  };
+
+  // --- Print Bill ---
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const billHTML = `
+      <html>
+      <head><title>Bill - ${customerName}</title></head>
+      <body>
+        <h2 style="text-align:center;">T.Gopi Textiles</h2>
+        <h4>Customer: ${customerName} | ${customerPhone}</h4>
+        <table border="1" cellspacing="0" cellpadding="6" width="100%">
+          <tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+          ${items
+            .map(
+              (i) =>
+                `<tr><td>${i.name}</td><td>${i.qty}</td><td>${i.price}</td><td>${i.total}</td></tr>`
+            )
+            .join("")}
+        </table>
+        <h3>Total: ₹${totalAmount.toFixed(2)}</h3>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(billHTML);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // --- Export Excel ---
+  const exportToExcel = () => {
+    const wb = utils.book_new();
+    const data = items.map((i) => ({
+      Customer: customerName,
+      Phone: customerPhone,
+      Product: i.name,
+      Quantity: i.qty,
+      Price: i.price,
+      Total: i.total,
+    }));
+    const ws = utils.json_to_sheet(data);
+    utils.book_append_sheet(wb, ws, "Bill");
+    writeFile(wb, `${customerName || "Bill"}.xlsx`);
+  };
 
   return (
-    <>
-      {/* Hidden Print Template */}
-      <div className="hidden">
-        <BillToPrint
-          ref={billRef}
-          items={billItems.map((i) => ({
-            ...i,
-            subtotal: i.billQty * i.price - i.discount,
-          }))}
-          total={totals.total}
-          subTotal={totals.subTotal}
-          discount={totals.discount}
-          billNo={pastBills[0]?.invoiceId || 'INV-XXXX'}
-          customerName={customerName}
+    <div className="p-8 bg-white shadow rounded-xl space-y-6">
+      <h1 className="text-2xl font-bold text-gray-800">🧾 Billing Panel</h1>
+
+      {/* Barcode Input */}
+      <div className="flex space-x-3">
+        <input
+          type="text"
+          placeholder="Scan / Enter Barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAddProduct()}
+          className="border p-2 w-64 rounded-md shadow-sm focus:ring-2 focus:ring-blue-400"
+        />
+        <button
+          onClick={handleAddProduct}
+          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          disabled={loading}
+        >
+          {loading ? "Adding..." : "Add"}
+        </button>
+      </div>
+
+      {/* Table */}
+      <table className="w-full border rounded-lg overflow-hidden">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="p-2">Barcode</th>
+            <th className="p-2">Product</th>
+            <th className="p-2">Price</th>
+            <th className="p-2">Qty</th>
+            <th className="p-2">Total</th>
+            <th className="p-2">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.barcode} className="border-t">
+              <td className="p-2">{i.barcode}</td>
+              <td className="p-2">{i.name}</td>
+              <td className="p-2">₹{i.price}</td>
+              <td className="p-2">
+                <input
+                  type="number"
+                  value={i.qty}
+                  min={1}
+                  onChange={(e) =>
+                    handleQtyChange(i.barcode, Number(e.target.value))
+                  }
+                  className="border w-16 p-1 rounded text-center"
+                />
+              </td>
+              <td className="p-2">₹{i.total}</td>
+              <td className="p-2 text-red-500 cursor-pointer" onClick={() => handleRemoveItem(i.barcode)}>
+                ✖
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Totals */}
+      <div className="text-right text-lg font-semibold text-gray-800">
+        Total: ₹{totalAmount.toFixed(2)}
+      </div>
+
+      {/* Customer Info */}
+      <div className="flex space-x-4">
+        <input
+          type="text"
+          placeholder="Customer Name"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          className="border p-2 rounded-md w-64"
+        />
+        <input
+          type="text"
+          placeholder="Customer Phone"
+          value={customerPhone}
+          onChange={(e) => setCustomerPhone(e.target.value)}
+          className="border p-2 rounded-md w-64"
         />
       </div>
 
-      <div className="flex h-full gap-6 p-6 bg-gray-100">
-        <div className="flex-1 flex flex-col gap-4">
-          <h1 className="text-2xl font-bold text-gray-800">Billing</h1>
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4 pt-4">
+        <button onClick={handleSaveBill} className="bg-green-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700">
+          <Save size={18} /> Buy
+        </button>
+        <button onClick={handleHoldBill} className="bg-yellow-500 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600">
+          <Pause size={18} /> Hold
+        </button>
+        <button onClick={handlePrint} className="bg-indigo-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700">
+          <Printer size={18} /> Print
+        </button>
+        <button onClick={exportToExcel} className="bg-gray-700 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-800">
+          <FileSpreadsheet size={18} /> Excel
+        </button>
+        <button onClick={handleReset} className="bg-red-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700">
+          <RotateCcw size={18} /> Reset
+        </button>
+      </div>
 
-          {/* Customer Inputs */}
-          <div className="bg-white p-4 rounded-lg shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input
-              placeholder="Customer Name"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="form-input"
-            />
-            <input
-              placeholder="Phone No."
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              className="form-input"
-            />
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value)}
-              className="form-input"
-            >
-              <option value="Cash">Cash</option>
-              <option value="UPI">UPI</option>
-              <option value="Card">Card</option>
-            </select>
-          </div>
-
-          {/* Product Search */}
-          <div className="bg-white p-4 rounded-lg shadow-sm flex-grow flex flex-col">
-            <div className="relative mb-4">
-              <input
-                placeholder="Enter Product Code or Name"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="form-input w-full ring-2 ring-blue-500"
-              />
-              {searchResults.length > 0 && (
-                <ul className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {searchResults.map((p) => (
-                    <li
-                      key={p.id}
-                      onClick={() => addProduct(p)}
-                      className="p-3 cursor-pointer hover:bg-blue-50 flex justify-between"
-                    >
-                      <span>{p.name}</span>
-                      <span className="text-gray-500">₹{p.price.toFixed(2)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Bill Table */}
-            <div className="flex-1 overflow-y-auto border-t border-b">
-              <table className="w-full text-left">
-                <thead className="bg-gray-100 sticky top-0">
-                  <tr>
-                    <th className="p-3">Product</th>
-                    <th className="p-3">Qty</th>
-                    <th className="p-3">Rate</th>
-                    <th className="p-3">Discount</th>
-                    <th className="p-3">Amount</th>
-                    <th className="p-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billItems.map((i) => {
-                    const subtotal = i.billQty * i.price - i.discount;
-                    return (
-                      <tr key={i.id} className="border-b">
-                        <td className="p-2 font-medium">{i.name}</td>
-                        <td className="p-2">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => updateQty(i.id, i.billQty - 1)}
-                              className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span>{i.billQty}</span>
-                            <button
-                              onClick={() => updateQty(i.id, i.billQty + 1)}
-                              className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"
-                            >
-                              <Plus size={14} />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="p-2">₹{i.price.toFixed(2)}</td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            value={i.discount}
-                            onChange={(e) =>
-                              updateDiscount(i.id, parseFloat(e.target.value) || 0)
-                            }
-                            className="form-input w-20 text-right"
-                          />
-                        </td>
-                        <td className="p-2 font-semibold">₹{subtotal.toFixed(2)}</td>
-                        <td className="p-2">
-                          <button
-                            onClick={() => updateQty(i.id, 0)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals + Buttons */}
-            <div className="mt-4 flex justify-between items-center">
-              <div className="flex gap-4">
-                <button
-                  onClick={clearBill}
-                  className="px-6 py-2 bg-gray-200 font-semibold rounded-lg hover:bg-gray-300"
-                >
-                  Reset / F12
-                </button>
-                <button
-                  onClick={() => billItems.length && handlePrint()}
-                  className="px-6 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600"
-                >
-                  Print / F9
-                </button>
+      {/* Held Bills */}
+      {holds.length > 0 && (
+        <div className="mt-6 border-t pt-4">
+          <h2 className="text-lg font-semibold mb-3">🟡 Held Bills</h2>
+          <div className="grid md:grid-cols-2 gap-3">
+            {holds.map((h) => (
+              <div
+                key={h.id}
+                onClick={() => handleRetrieveHold(h)}
+                className="p-3 border rounded-lg bg-yellow-50 hover:bg-yellow-100 cursor-pointer"
+              >
+                <div className="font-semibold">{h.customerName || "Unnamed"}</div>
+                <div className="text-sm text-gray-600">
+                  {h.items?.length} items — ₹{h.totalAmount}
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-4xl font-black text-blue-600">
-                  Total: ₹{totals.total.toFixed(2)}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
-
-        {/* Side Summary */}
-        <aside className="w-80 flex-shrink-0 flex flex-col gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-            <p className="text-sm text-gray-500">Last Bill Amount</p>
-            <p className="text-2xl font-bold text-orange-500">
-              ₹{pastBills[0]?.total?.toFixed(2) || '0.00'}
-            </p>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow-sm space-y-2 text-lg">
-            <div className="flex justify-between">
-              <span>Sub Total:</span> <span>₹{totals.subTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Discount:</span> <span>₹{totals.discount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-2xl font-bold text-blue-600 border-t pt-2 mt-2">
-              <span>Total:</span> <span>₹{totals.total.toFixed(2)}</span>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </>
+      )}
+    </div>
   );
 };
 
