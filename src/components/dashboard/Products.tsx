@@ -238,18 +238,6 @@ const Products = () => {
     });
   };
 
-  const handleSelectAll = () => {
-    if (Object.keys(selectedProducts).length === filteredProducts.length) {
-      setSelectedProducts({});
-    } else {
-      const newSelection: SelectedProducts = {};
-      filteredProducts.forEach(p => {
-        newSelection[p.id] = { quantity: 1, barcode: p.barcode, name: p.name, price: p.price };
-      });
-      setSelectedProducts(newSelection);
-    }
-  };
-
   const handleBarcodeQuantityChange = (productId: string, quantity: number) => {
     setSelectedProducts(prev => ({
       ...prev,
@@ -301,43 +289,42 @@ const Products = () => {
           <title>Print Barcodes</title>
           <style>
             @page {
-              size: 4in auto; /* Set paper width to 4 inches, height is automatic for roll */
+              size: 4in auto;
               margin: 2mm;
             }
             body { 
               font-family: sans-serif; 
               margin: 0;
-              width: 4in; /* Ensure body uses the full width */
+              width: 4in;
             }
             .sticker-sheet {
               display: flex;
               flex-wrap: wrap;
-              justify-content: flex-start; /* Align items to the start */
+              justify-content: flex-start;
               gap: 0;
-              padding: 0;
             }
             .sticker {
               width: 1.5in;
               height: 1in;
-              box-sizing: border-box; /* Include padding and border in the element's total width and height */
+              box-sizing: border-box;
               padding: 2mm;
-              border: 1px dashed #999; /* Dashed border for cutting guidance */
+              border: 1px dashed #ccc;
               display: flex;
               flex-direction: column;
               justify-content: center;
               align-items: center;
-              page-break-inside: avoid; /* Prevent a sticker from breaking across pages */
+              page-break-inside: avoid;
               overflow: hidden;
             }
             .product-name {
               font-size: 7pt;
               font-weight: bold;
               margin-bottom: 1mm;
-              /* Truncate long text */
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               width: 100%;
+              text-align: center;
             }
             .product-price {
               font-size: 9pt;
@@ -345,7 +332,7 @@ const Products = () => {
               margin-top: 1mm;
             }
             img {
-              max-height: 12mm; /* Constrain barcode image height */
+              max-height: 12mm;
               width: auto;
             }
           </style>
@@ -368,7 +355,20 @@ const Products = () => {
       (p.id && p.id.toString().includes(searchTerm))
     );
   });
-  const isAllSelected = Object.keys(selectedProducts).length > 0 && Object.keys(selectedProducts).length === filteredProducts.length;
+  
+  const isAllSelected = filteredProducts.length > 0 && filteredProducts.every(p => !!selectedProducts[p.id]);
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedProducts({});
+    } else {
+      const newSelection: SelectedProducts = {};
+      filteredProducts.forEach(p => {
+        newSelection[p.id] = { quantity: 1, barcode: p.barcode, name: p.name, price: p.price };
+      });
+      setSelectedProducts(newSelection);
+    }
+  };
 
   if (isLoading) return <div className="p-6 text-center text-gray-500">Loading...</div>;
 

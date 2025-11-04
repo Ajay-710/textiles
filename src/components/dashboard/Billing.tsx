@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
 
 // --- Interfaces (unchanged) ---
 interface Product { barcode: string; name: string; price: number; quantity: number; }
@@ -34,6 +37,7 @@ const generateInvoiceNumber = (): string => {
   localStorage.setItem("invoiceCounter", (counter + 1).toString());
   return invoiceNumber;
 };
+
 
 // --- Return Modal Component (unchanged) ---
 const ReturnModal = ({ onFind, onClose }: { onFind: (invoiceId: string) => void; onClose: () => void; }) => {
@@ -151,31 +155,54 @@ const Billing: React.FC = () => {
 
   const parsedReceivedAmount = parseFloat(receivedAmount) || 0;
   const changeDue = (paymentMethod === 'Cash' && parsedReceivedAmount > totalAmount) ? parsedReceivedAmount - totalAmount : 0;
+// ✅ New Firestore-based invoice retrieval
+const handleFindBill = async (invoiceId: string) => {
+  try {
+    setLoading(true);
 
-  const handleFindBill = async (invoiceId: string) => {
-    try {
-      setLoading(true);
-      const encodedInvoiceId = encodeURIComponent(invoiceId);
-      const res = await billingService.get(`/bills/${encodedInvoiceId}`);
-      const bill = res.data;
-      if (bill && bill.items) {
-        setItems(bill.items.map((i: any) => ({
-          barcode: i.productId, name: i.productName, price: i.unitPrice,
-          qty: i.quantity, total: i.netAmount, GST: i.gstRate || 0, Discount: i.discountRate || 0,
-        })));
-        setCustomerName(bill.customerName);
-        setCustomerPhone(bill.customerPhone);
-        setIsReturnMode(true);
-        setIsReturnModalOpen(false);
-      } else {
-        alert("Invoice not found.");
+    // Try Firestore first
+    const docRef = doc(db, "bills", invoiceId);
+    const snapshot = await getDoc(docRef);
+
+    if (snapshot.exists()) {
+      const bill = snapshot.data();
+      console.log("✅ Bill found in Firestore:", bill);
+
+      if (!bill.items || bill.items.length === 0) {
+        alert(`No items found for invoice ${invoiceId}.`);
+        setLoading(false);
+        return;
       }
-    } catch (err: any) {
-      alert(err.response?.data?.error || `Failed to find invoice ${invoiceId}.`);
-    } finally {
-      setLoading(false);
+
+      // Map Firestore items to local BillItem structure
+      setItems(bill.items.map((i: any) => ({
+        barcode: i.productId || "",
+        name: i.productName || "",
+        price: parseFloat(i.unitPrice || 0),
+        qty: parseInt(i.quantity || 1),
+        total: parseFloat(i.netAmount || 0),
+        GST: parseFloat(i.gstRate || 0),
+        Discount: parseFloat(i.discountRate || 0),
+      })));
+
+      setCustomerName(bill.customerName || "");
+      setCustomerPhone(bill.customerPhone ? bill.customerPhone.toString() : "");
+      setPaymentMethod(bill.paymentMethod || "Cash");
+      setIsReturnMode(true);
+      setIsReturnModalOpen(false);
+
+      alert(`✅ Bill ${invoiceId} loaded successfully!`);
+    } else {
+      alert(`❌ No bill found with ID: ${invoiceId}`);
     }
-  };
+  } catch (err) {
+    console.error("🔥 Firestore retrieval error:", err);
+    alert("Failed to fetch bill from Firestore. Check console for details.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleRestoreStock = async (barcode: string, qty: number) => {
     if (window.confirm(`Are you sure you want to return ${qty} unit(s) of product ${barcode} to stock?`)) {
@@ -192,18 +219,40 @@ const Billing: React.FC = () => {
     }
   };
 
-  const handleSaveBill = async (invoiceNumber: string) => {
-    if (!items.length) throw new Error("Add at least one item!");
-    const billData = {
-      id: invoiceNumber, customerName, customerPhone: Number(customerPhone) || 0, paymentMethod, status: "PAID",
-      items: items.map((i) => ({
-        productId: i.barcode, quantity: i.qty, productName: i.name, unitPrice: i.price,
-        subtotal: i.price * i.qty, netAmount: i.total, discountRate: i.Discount || 0,
-      })),
-      totalDiscountAmount: 0, totalGstAmount: 0, finalAmount: totalAmount, createdAt: new Date(),
-    };
-    await billingService.post("/billing/create", billData);
+  const handleSaveBill = async () => {
+  if (!items.length) throw new Error("Add at least one item!");
+
+  // Generate a Firestore-style bill ID (same format)
+  const billId = `TGT${(Math.floor(Math.random() * 1_000_000_000)).toString().padStart(9, "0")}`;
+  
+  const billData = {
+    id: billId, // ✅ Firestore ID used as invoice
+    customerName,
+    customerPhone: Number(customerPhone) || 0,
+    paymentMethod,
+    status: "PAID",
+    items: items.map((i) => ({
+      productId: i.barcode,
+      quantity: i.qty,
+      productName: i.name,
+      unitPrice: i.price,
+      subtotal: i.price * i.qty,
+      netAmount: i.total,
+      discountRate: i.Discount || 0,
+      gstRate: i.GST || 0,
+    })),
+    totalDiscountAmount: 0,
+    totalGstAmount: 0,
+    finalAmount: totalAmount,
+    createdAt: new Date(),
   };
+
+  // Save via your backend (which writes to Firestore)
+  await billingService.post("/billing/create", billData);
+
+  return billId; // ✅ Return it for print use
+};
+
   
   // --- SENIOR DEV FIX: Restored the invoiceNumber parameter ---
   const handlePrint = (invoiceNumber: string) => {
@@ -292,21 +341,21 @@ const Billing: React.FC = () => {
 
   // --- SENIOR DEV FIX: Re-ordered operations to prevent popup blocking ---
   const handleSaveAndPrint = async () => {
-    if (!items.length) {
-      alert("Add at least one item!");
-      return;
-    }
-    const invoiceNumber = generateInvoiceNumber();
-    try {
-      await handleSaveBill(invoiceNumber); // 1. Save the bill and wait
-      handlePrint(invoiceNumber);         // 2. Immediately call print after save is successful
-      alert("✅ Bill created successfully!"); // 3. Show success message
-      handleReset();                      // 4. Reset the form
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create bill.");
-      localStorage.setItem("invoiceCounter", (parseInt(localStorage.getItem("invoiceCounter") || "2") - 1).toString());
-    }
-  };
+  if (!items.length) {
+    alert("Add at least one item!");
+    return;
+  }
+
+  try {
+    const billId = await handleSaveBill(); // ✅ Firestore ID returned
+    handlePrint(billId); // ✅ Use it as invoice number
+    alert(`✅ Bill ${billId} created and printed successfully!`);
+    handleReset();
+  } catch (err: any) {
+    alert(err.response?.data?.error || "Failed to create bill.");
+  }
+};
+
 
   const handleHoldBill = async () => {
     if (!items.length) return alert("No items to hold!");
@@ -348,18 +397,19 @@ const Billing: React.FC = () => {
     setReceivedAmount("");
   };
 
-  const handleDeleteHeldBill = async (billId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (window.confirm('Are you sure you want to permanently delete this held bill?')) {
-      try {
-        await billingService.delete(`/billing/hold/delete/${billId}`);
-        alert('Held bill deleted successfully.');
-        await fetchHoldBills();
-      } catch (err: any) {
-        alert(err.response?.data?.error || `Failed to delete held bill ${billId}.`);
-      }
+const handleDeleteHeldBill = async (billId: string, event: React.MouseEvent) => {
+  event.stopPropagation();
+  if (window.confirm('Mark this held bill as PAID and remove it from held bills?')) {
+    try {
+      await billingService.put(`/billing/${billId}/pay`);
+      alert('✅ Bill marked as PAID successfully!');
+      await fetchHoldBills(); // Refresh the held bills list
+    } catch (err: any) {
+      alert(err.response?.data?.error || `Failed to update bill ${billId}.`);
     }
-  };
+  }
+};
+
 
   const handleReset = () => {
     setItems([]); setBarcode(""); setCustomerName(""); setCustomerPhone("");
