@@ -1,17 +1,16 @@
 // src/components/dashboard/Sidebar.tsx
 import { NavLink, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Package, Truck, Users, BarChart2, Settings, LogOut } from 'lucide-react';
+import { ShoppingCart, Package, Users, BarChart2, Settings, LogOut } from 'lucide-react';
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const handleLogout = () => navigate('/');
 
   // --- THIS IS THE CORRECTED PART ---
-  // All paths now correctly start with /admin/
+  // "Purchase" has been removed from the navigation array.
   const navItems = [
     { name: 'Billing', path: '/admin/billing', icon: ShoppingCart },
     { name: 'Stock / Products', path: '/admin/products', icon: Package },
-    { name: 'Purchase', path: '/admin/purchase', icon: Truck },
     { name: 'Suppliers', path: '/admin/suppliers', icon: Users },
     { name: 'Reports', path: '/admin/reports', icon: BarChart2 },
     { name: 'Settings', path: '/admin/settings', icon: Settings },

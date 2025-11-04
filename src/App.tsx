@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import LoginModal from "@/components/LoginModal";
 import NotFound from "@/pages/NotFound";
-import ProtectedRoute from "@/components/ProtectedRoute"; // 1. Import the new component
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Import Layouts
 import AdminLayout from '@/pages/dashboard/AdminLayout';
@@ -13,7 +13,7 @@ import CashierLayout from '@/pages/dashboard/CashierLayout';
 // Import Dashboard Components
 import Billing from '@/components/dashboard/Billing';
 import Products from '@/components/dashboard/Products';
-import Purchase from '@/components/dashboard/Purchase';
+// The "Purchase" component import has been removed
 import Suppliers from '@/components/dashboard/Suppliers';
 import Reports from '@/components/dashboard/Reports';
 import Settings from '@/components/dashboard/Settings';
@@ -36,7 +36,7 @@ const App = () => {
             <Route index element={<Products />} />
             <Route path="billing" element={<Billing />} />
             <Route path="products" element={<Products />} />
-            <Route path="purchase" element={<Purchase />} />
+            {/* The "/admin/purchase" route has been removed */}
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />

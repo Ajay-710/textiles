@@ -4,14 +4,14 @@ import { Save } from 'lucide-react';
 
 const Settings = () => {
   const [shopName, setShopName] = useLocalStorage('shopName', 'T.Gopi Textiles');
-  const [gstNumber, setGstNumber] = useLocalStorage('gstNumber', 'YOUR_GST_NUMBER_HERE');
-  const [billMessage, setBillMessage] = useLocalStorage('billMessage', 'Thank You For Your Purchasing');
   
-  // --- NEW: State for Default GST Percentage ---
-  const [defaultGst, setDefaultGst] = useLocalStorage('defaultGst', 5); // Default is 5%
+  // --- SENIOR DEV FIX: Updated the default GST number as per the image ---
+  const [gstNumber, setGstNumber] = useLocalStorage('gstNumber', '33AAACL1838J1ZN');
+  
+  const [billMessage, setBillMessage] = useLocalStorage('billMessage', 'Thank You For Your Purchasing');
+  const [defaultGst, setDefaultGst] = useLocalStorage('defaultGst', 5);
 
   const handleSave = () => {
-    // In a real app, you might do more here, but for now, the data is saved automatically by the hook.
     alert("Settings Saved!");
   };
 
@@ -51,7 +51,6 @@ const Settings = () => {
             />
           </div>
           
-          {/* --- NEW: Input for Default GST Percentage --- */}
           <div>
             <label htmlFor="defaultGst" className="font-medium text-gray-700">Default GST Percentage (%)</label>
             <input 

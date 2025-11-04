@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Pencil, Trash2, PlusCircle, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Pencil, Trash2, PlusCircle, X, Upload } from 'lucide-react';
 import { vendorService } from '@/lib/api';
+import Papa from 'papaparse'; // Import papaparse
 
 // --- Data Structures ---
 interface Supplier {
@@ -17,6 +18,9 @@ const Suppliers = () => {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // --- NEW: Ref for the hidden file input ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Fetch Suppliers ---
   const fetchSuppliers = async () => {
@@ -82,6 +86,77 @@ const Suppliers = () => {
     }
   };
 
+  // --- NEW: Functions to handle CSV Upload ---
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const suppliersToUpload = results.data as any[];
+        if (suppliersToUpload.length === 0) {
+          alert("CSV file is empty or formatted incorrectly.");
+          setLoading(false);
+          return;
+        }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        const uploadPromises = suppliersToUpload.map(supplier => {
+          const payload = {
+            name: supplier.name,
+            phone: supplier.phone,
+            address: supplier.address,
+            gstin: supplier.gstin,
+          };
+          
+          if (!payload.name) {
+            console.error("Skipping invalid row (missing name):", supplier);
+            return Promise.reject('Missing required name field');
+          }
+
+          // Using the existing single-add endpoint for each row
+          return vendorService.post('/vendors/add', payload);
+        });
+
+        const settledResults = await Promise.allSettled(uploadPromises);
+        
+        settledResults.forEach(result => {
+          if (result.status === 'fulfilled') {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error("Upload failed for one supplier:", result.reason);
+          }
+        });
+
+        alert(`${successCount} suppliers uploaded successfully.\n${errorCount} suppliers failed to upload.`);
+        
+        await fetchSuppliers(); // Refresh the list
+        setLoading(false);
+        
+        // Reset the file input to allow re-uploading the same file
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""; 
+        }
+      },
+      error: (error) => {
+        alert("Error parsing CSV file: " + error.message);
+        setLoading(false);
+      }
+    });
+  };
+
+
   // --- Modal Handlers ---
   const handleOpenModal = (supplier: Supplier | null) => {
     setEditingSupplier(supplier);
@@ -103,13 +178,30 @@ const Suppliers = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-800">Supplier Management</h1>
-        <button
-          onClick={() => handleOpenModal(null)}
-          className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2"
-        >
-          <PlusCircle size={20} /> Add New Supplier
-        </button>
+        <div className="flex gap-4">
+          <button
+            onClick={handleUploadClick}
+            className="px-5 py-2.5 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 flex items-center gap-2"
+          >
+            <Upload size={20} /> Upload CSV
+          </button>
+          <button
+            onClick={() => handleOpenModal(null)}
+            className="px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 flex items-center gap-2"
+          >
+            <PlusCircle size={20} /> Add New Supplier
+          </button>
+        </div>
       </div>
+      
+      {/* --- NEW: Hidden file input --- */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept=".csv" 
+        onChange={handleFileUpload} 
+      />
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
         <input
@@ -128,44 +220,38 @@ const Suppliers = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b">
-  <tr>
-    <th className="p-4">S.No</th>
-    <th className="p-4">Supplier Name</th>  {/* Moved before ID */}
-    <th className="p-4">Supplier ID</th>
-    <th className="p-4">Contact No.</th>
-    <th className="p-4">GST Number</th>
-    <th className="p-4">Address</th>
-    <th className="p-4">Action</th>
-  </tr>
-</thead>
-<tbody>
-  {filteredSuppliers.map((supplier, index) => (
-    <tr key={supplier.id} className="border-t hover:bg-gray-50">
-      <td className="p-4">{index + 1}</td>
-      <td className="p-4 font-medium">{supplier.name}</td> {/* Name first */}
-      <td className="p-4 font-mono">{supplier.id}</td>      {/* ID second */}
-      <td className="p-4">{supplier.contact}</td>
-      <td className="p-4">{supplier.gst}</td>
-      <td className="p-4">{supplier.address}</td>
-      <td className="p-4">
-        <div className="flex gap-3">
-          <button
-            onClick={() => handleOpenModal(supplier)}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            onClick={() => handleDeleteSupplier(supplier.id)}
-            className="text-red-600 hover:text-red-800"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      </td>
-    </tr>
-  ))}
-</tbody>
+                <tr>
+                  <th className="p-4">S.No</th>
+                  <th className="p-4">Supplier Name</th>
+                  <th className="p-4">Supplier ID</th>
+                  <th className="p-4">Contact No.</th>
+                  <th className="p-4">GST Number</th>
+                  <th className="p-4">Address</th>
+                  <th className="p-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSuppliers.map((supplier, index) => (
+                  <tr key={supplier.id} className="border-t hover:bg-gray-50">
+                    <td className="p-4">{index + 1}</td>
+                    <td className="p-4 font-medium">{supplier.name}</td>
+                    <td className="p-4 font-mono">{supplier.id}</td>
+                    <td className="p-4">{supplier.contact}</td>
+                    <td className="p-4">{supplier.gst}</td>
+                    <td className="p-4">{supplier.address}</td>
+                    <td className="p-4">
+                      <div className="flex gap-3">
+                        <button onClick={() => handleOpenModal(supplier)} className="text-blue-600 hover:text-blue-800">
+                          <Pencil size={18} />
+                        </button>
+                        <button onClick={() => handleDeleteSupplier(supplier.id)} className="text-red-600 hover:text-red-800">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         )}
@@ -182,7 +268,7 @@ const Suppliers = () => {
   );
 };
 
-// --- Helper Modal Component ---
+// --- Helper Modal Component (unchanged) ---
 const SupplierFormModal = ({
   supplier,
   onSave,
@@ -208,67 +294,31 @@ const SupplierFormModal = ({
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {supplier ? 'Edit Supplier' : 'Add New Supplier'}
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
-            <X size={24} />
-          </button>
+          <h2 className="text-2xl font-bold text-gray-800">{supplier ? 'Edit Supplier' : 'Add New Supplier'}</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><X size={24} /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label>Supplier Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="form-input mt-1"
-              required
-            />
+            <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="form-input mt-1" required />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label>Contact No.</label>
-              <input
-                type="number"
-                value={formData.contact}
-                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                className="form-input mt-1"
-              />
+              <input type="number" value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} className="form-input mt-1" />
             </div>
             <div>
               <label>GST Number</label>
-              <input
-                type="text"
-                value={formData.gst}
-                onChange={(e) => setFormData({ ...formData, gst: e.target.value })}
-                className="form-input mt-1"
-              />
+              <input type="text" value={formData.gst} onChange={(e) => setFormData({ ...formData, gst: e.target.value })} className="form-input mt-1" />
             </div>
           </div>
           <div>
             <label>Address</label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="form-input mt-1"
-            />
+            <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="form-input mt-1" />
           </div>
           <div className="flex justify-end gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
-            >
-              Save Supplier
-            </button>
+            <button type="button" onClick={onClose} className="px-5 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Cancel</button>
+            <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Save Supplier</button>
           </div>
         </form>
       </div>
