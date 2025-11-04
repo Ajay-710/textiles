@@ -205,18 +205,103 @@ const Billing: React.FC = () => {
     await billingService.post("/billing/create", billData);
   };
   
+  // --- SENIOR DEV FIX: Restored the invoiceNumber parameter ---
   const handlePrint = (invoiceNumber: string) => {
-    // This function's logic is correct and remains unchanged
+    // This entire function's logic is correct, it just needed the parameter.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Could not open print window. Please disable your popup blocker.");
+      return;
+    }
+    const currentDate = new Date();
+    const day = currentDate.getDate().toString().padStart(2, '0');
+    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+    const year = currentDate.getFullYear();
+    const hours = currentDate.getHours().toString().padStart(2, '0');
+    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+    const formattedDate = `${day}/${month}/${year}, ${hours}:${minutes}`;
+    const finalReceivedAmount = parsedReceivedAmount > 0 ? parsedReceivedAmount : totalAmount;
+
+    let totalGstAmount = 0;
+    let totalTaxableAmount = 0;
+    const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+
+    items.forEach(item => {
+        const subtotal = item.price * item.qty;
+        const discountAmount = subtotal * (item.Discount / 100);
+        const taxableAmount = subtotal - discountAmount;
+        const gstAmount = taxableAmount * (item.GST / 100);
+        totalTaxableAmount += taxableAmount;
+        totalGstAmount += gstAmount;
+    });
+
+    const effectiveGstRate = totalTaxableAmount > 0 ? (totalGstAmount / totalTaxableAmount) * 100 : 0;
+
+    const billHTML = `
+      <html><head><title>Invoice - ${invoiceNumber}</title>
+      <style>
+        @page { margin: 5mm; }
+        body { font-family: 'Courier New', monospace; font-size: 10pt; color: #000; margin: 0; padding: 0; background-color: #fff; }
+        .invoice-container { width: 280px; margin: 0; padding: 5px; }
+        .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; } 
+        th, td { padding: 2px; vertical-align: top;}
+        .header h1 { font-size: 14pt; margin: 0; } 
+        .header p { font-size: 10pt; margin: 1px 0; }
+        .meta-info p { font-size: 10pt; margin: 2px 0; }
+        .items-table th { padding-bottom: 5px; }
+        .items-table .item-name-row td { padding-top: 1px; font-size: 9pt; }
+        .totals-table td { padding: 3px 2px; }
+        ul { padding-left: 15px; font-size: 9pt; margin: 5px 0; } 
+        li { margin-bottom: 3px; }
+      </style></head>
+      <body><div class="invoice-container">
+        <div class="header text-center"><h1>${shopName}</h1><p class="font-bold">GSTIN NO: ${gstNumber}</p></div>
+        <p class="text-left">Invoice: ${invoiceNumber}<br>Date: ${formattedDate}</p><hr>
+        <h2 class="text-center font-bold" style="font-size:12pt; margin: 5px 0;">INVOICE</h2>
+        <div class="meta-info"><p>CASHIER: TGT-Cashier01</p><p>Customer: ${customerName || 'WALK-IN'}</p><p>Contact: ${customerPhone || 'N/A'}</p></div><hr>
+        <table class="items-table">
+          <thead><tr><th class="text-left">S#</th><th class="text-left">ID</th><th class="text-right">Price</th><th class="text-right">Qty</th><th class="text-right">Total</th></tr></thead>
+          <tbody>
+          ${items.map((i, idx) => `
+            <><tr><td class="text-left">${idx + 1}</td><td class="text-left">${i.barcode}</td><td class="text-right">₹${i.price.toFixed(2)}</td><td class="text-right">${i.qty}</td><td class="text-right">₹${i.total.toFixed(2)}</td></tr>
+            <tr class="item-name-row"><td colspan="5" class="text-left">${i.name} (GST:${i.GST}%, Disc:${i.Discount}%)</td></tr></>
+          `).join('')}
+          </tbody>
+        </table><hr>
+        <div><p class="font-bold">Payment Mode</p><table class="totals-table"><tbody><tr><td>${paymentMethod}</td><td class="text-right">₹${totalAmount.toFixed(2)}</td></tr></tbody></table></div><hr>
+        <table class="totals-table"><tbody>
+          <tr><td>TOTAL RECEIVED AMOUNT</td><td class="text-right">₹${finalReceivedAmount.toFixed(2)}</td></tr>
+          <tr><td>TOTAL GST AMOUNT (GST @ ${effectiveGstRate.toFixed(2)}%)</td><td class="text-right">₹${totalGstAmount.toFixed(2)}</td></tr>
+          ${paymentMethod === 'Cash' && changeDue > 0 ? `<tr><td>CHANGE DUE</td><td class="text-right font-bold">₹${changeDue.toFixed(2)}</td></tr>` : ''}
+          <tr><td>TOTAL QTY: ${totalQty}</td><td></td></tr>
+          <tr><td>TOTAL ITEMS: ${items.length}</td><td></td></tr>
+        </tbody></table><hr>
+        <div class="terms-conditions"><p class="font-bold">Terms & Conditions</p>
+          <ul><li>All offers are subject to their respective T&Cs.</li><li>Returns/exchanges accepted within 30 days.</li><li>No returns on Underwear, Cosmetics, Accessories.</li><li>Bras & Vests can be exchanged post-inspection.</li><li>Discounts include applicable GST adjustments.</li><li>Credit note for items with manufacturing defects.</li></ul>
+        </div>
+        <div class="text-center" style="margin-top: 10px;"><p>${invoiceNumber}</p><p class="font-bold">${billMessage}</p></div>
+      </div></body></html>`;
+    printWindow.document.write(billHTML);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
+  // --- SENIOR DEV FIX: Re-ordered operations to prevent popup blocking ---
   const handleSaveAndPrint = async () => {
-    if (!items.length) return alert("Add at least one item!");
+    if (!items.length) {
+      alert("Add at least one item!");
+      return;
+    }
     const invoiceNumber = generateInvoiceNumber();
     try {
-      await handleSaveBill(invoiceNumber);
-      handlePrint(invoiceNumber);
-      alert("✅ Bill created successfully!");
-      handleReset();
+      await handleSaveBill(invoiceNumber); // 1. Save the bill and wait
+      handlePrint(invoiceNumber);         // 2. Immediately call print after save is successful
+      alert("✅ Bill created successfully!"); // 3. Show success message
+      handleReset();                      // 4. Reset the form
     } catch (err: any) {
       alert(err.response?.data?.error || "Failed to create bill.");
       localStorage.setItem("invoiceCounter", (parseInt(localStorage.getItem("invoiceCounter") || "2") - 1).toString());
@@ -224,21 +309,43 @@ const Billing: React.FC = () => {
   };
 
   const handleHoldBill = async () => {
-    // This function's logic is correct and remains unchanged
+    if (!items.length) return alert("No items to hold!");
+    try {
+      setLoading(true);
+      const billData = {
+        customerName, customerPhone: Number(customerPhone) || 0, paymentMethod: "HOLD", status: "HOLD",
+        items: items.map((i) => ({
+          productId: i.barcode, quantity: i.qty, productName: i.name, unitPrice: i.price,
+          subtotal: i.price * i.qty, netAmount: i.total, discountRate: i.Discount || 0,
+        })),
+        totalDiscountAmount: 0, totalGstAmount: 0, finalAmount: totalAmount, createdAt: new Date(),
+      };
+      const res = await billingService.post("/billing/puthold", billData);
+      if (res.status === 200 || res.status === 201) {
+        alert("🟡 Bill placed on hold!");
+        await fetchHoldBills();
+        setTimeout(() => handleReset(), 300);
+      } else {
+        alert("Failed to hold bill. Please try again.");
+      }
+    } catch (err: any) {
+      console.error("Error holding bill:", err);
+      alert(err.response?.data?.error || "Failed to hold bill.");
+    } finally {
+      setLoading(false);
+    }
   };
-  
+
   const handleRetrieveHold = (bill: any) => {
-    handleReset();
-    setTimeout(() => {
-        setItems(bill.items.map((i: any) => ({
-            barcode: i.productId, name: i.productName, price: i.unitPrice,
-            qty: i.quantity, total: i.netAmount, quantity: i.quantity,
-            GST: i.GST || 0, Discount: i.discountRate || 0,
-        })));
-        setCustomerName(bill.customerName);
-        setCustomerPhone(bill.customerPhone);
-        setPaymentMethod(bill.paymentMethod || "Cash");
-    }, 50);
+    setItems(bill.items.map((i: any) => ({
+      barcode: i.productId, name: i.productName, price: i.unitPrice,
+      qty: i.quantity, total: i.netAmount, quantity: i.quantity,
+      GST: i.GST || 0, Discount: i.discountRate || 0,
+    })));
+    setCustomerName(bill.customerName);
+    setCustomerPhone(bill.customerPhone);
+    setPaymentMethod(bill.paymentMethod || "Cash");
+    setReceivedAmount("");
   };
 
   const handleDeleteHeldBill = async (billId: string, event: React.MouseEvent) => {
@@ -261,7 +368,14 @@ const Billing: React.FC = () => {
   };
 
   const exportToExcel = () => {
-    // This function's logic is correct and remains unchanged
+    const wb = utils.book_new();
+    const data = items.map((i, idx) => ({
+      SN: idx + 1, Customer: customerName, Phone: customerPhone, Payment: paymentMethod,
+      Product: i.name, Quantity: i.qty, Price: i.price, Total: i.total,
+    }));
+    const ws = utils.json_to_sheet(data);
+    utils.book_append_sheet(wb, ws, "Bill");
+    writeFile(wb, `${customerName || "Bill"}.xlsx`);
   };
 
   return (
@@ -330,7 +444,6 @@ const Billing: React.FC = () => {
           </table>
         </motion.div>
 
-        {/* --- SENIOR DEV FIX: Corrected Layout Wrapper --- */}
         <div className="space-y-6">
           {!isReturnMode && (
             <>

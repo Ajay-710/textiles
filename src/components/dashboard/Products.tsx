@@ -1,35 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Trash2, PlusCircle, X, Download, Layers, Upload } from 'lucide-react'; // Added Upload
+import { Pencil, Trash2, PlusCircle, X, Download, Layers, Upload, Printer } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { productService, vendorService } from '@/lib/api';
 import Barcode from 'react-barcode';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import Papa from 'papaparse'; // Import papaparse
+import Papa, { ParseResult } from 'papaparse';
+import JsBarcode from 'jsbarcode';
 
 // Data Structures
 interface Product {
-  id: string;
-  name: string;
-  category: string;
-  purchaseRate: number;
-  purchaseGst: number;
-  price: number;
-  discount: number;
-  stockQuantity: number;
-  vendorId: string;
-  vendorName: string;
-  barcode: string;
-  barcodeImageUrl?: string;
-  createdAt: string;
-  updatedAt: string;
+  id: string; name: string; category: string; purchaseRate: number; purchaseGst: number;
+  price: number; discount: number; stockQuantity: number; vendorId: string; vendorName: string;
+  barcode: string; barcodeImageUrl?: string; createdAt: string; updatedAt: string;
 }
 interface Vendor { id: string; name: string; }
+
+type SelectedProducts = {
+  [productId: string]: {
+    quantity: number;
+    barcode: string;
+    name: string;
+    price: number;
+  }
+};
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Silk Saree', 'Kurti']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,9 +36,8 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [defaultGst] = useLocalStorage('defaultGst', 5);
-
-  // --- NEW: Ref for the hidden file input ---
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProducts>({});
 
   const fetchData = async () => {
     try {
@@ -51,12 +49,14 @@ const Products = () => {
       ]);
       if (productsResult.status === 'fulfilled') {
         const fetchedProducts = productsResult.value.data || [];
+        
         fetchedProducts.sort((a, b) => {
-          if (b.createdAt && !a.createdAt) return -1;
-          if (!b.createdAt && a.createdAt) return 1;
+          if (b.createdAt && !a.createdAt) return 1;
+          if (!b.createdAt && a.createdAt) return -1;
           if (!b.createdAt && !a.createdAt) return 0;
-          return b.createdAt.localeCompare(a.createdAt);
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
+
         setProducts(fetchedProducts);
       } else {
         console.error('Failed to fetch products:', productsResult.reason);
@@ -157,94 +157,206 @@ const Products = () => {
     setEditingProduct(null);
   };
 
-  const handleDownloadBarcode = (url: string, barcode: string) => {
-    fetch(url)
-      .then((response) => response.blob())
-      .then((blob) => {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `barcode-${barcode}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      })
-      .catch(() => alert('Could not download barcode (CORS issue).'));
-  };
+  const processInBatches = async (productsToUpload: any[], batchSize = 10) => {
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < productsToUpload.length; i += batchSize) {
+      const batch = productsToUpload.slice(i, i + batchSize);
+      
+      const uploadPromises = batch.map(product => {
+        const vendor = vendors.find(v => v.id === product.vendorId);
+        if (!vendor) {
+          console.error(`Skipping product "${product.name}" - Vendor ID "${product.vendorId}" not found.`);
+          return Promise.reject(`Vendor ID not found`);
+        }
 
-  // --- NEW: Functions to handle CSV Upload ---
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
+        const payload = {
+          name: product.name, category: product.category, price: parseFloat(product.price) || 0,
+          stockQuantity: parseInt(product.stockQuantity, 10) || 0, barcode: product.barcode,
+          purchaseRate: parseFloat(product.purchaseRate) || 0, purchaseGst: parseFloat(product.purchaseGst) || defaultGst,
+          discount: parseFloat(product.discount) || 0, vendorId: vendor.id, vendorName: vendor.name,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        };
+
+        if (!payload.name || !payload.price || !payload.barcode) {
+          console.error("Skipping invalid row:", product);
+          return Promise.reject('Missing required fields');
+        }
+        return productService.post('/products/add', payload);
+      });
+      
+      const settledResults = await Promise.allSettled(uploadPromises);
+      settledResults.forEach(result => {
+        if (result.status === 'fulfilled') successCount++;
+        else {
+          errorCount++;
+          console.error("Upload failed for one product in batch:", result.reason);
+        }
+      });
+    }
+    return { successCount, errorCount };
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     setIsLoading(true);
-
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
-        const productsToUpload = results.data as any[];
-        if (productsToUpload.length === 0) {
+      complete: async (results: ParseResult<any>) => {
+        if (results.data.length === 0) {
           alert("CSV file is empty or formatted incorrectly.");
           setIsLoading(false);
           return;
         }
-
-        let successCount = 0;
-        let errorCount = 0;
-
-        const uploadPromises = productsToUpload.map(product => {
-          const now = new Date().toISOString();
-          const payload = {
-            name: product.name,
-            category: product.category,
-            price: parseFloat(product.price) || 0,
-            stockQuantity: parseInt(product.stockQuantity, 10) || 0,
-            barcode: product.barcode,
-            purchaseRate: parseFloat(product.purchaseRate) || 0,
-            purchaseGst: parseFloat(product.purchaseGst) || defaultGst,
-            discount: parseFloat(product.discount) || 0,
-            vendorId: product.vendorId,
-            vendorName: product.vendorName,
-            createdAt: now,
-            updatedAt: now,
-          };
-          
-          if (!payload.name || !payload.price || !payload.barcode) {
-            console.error("Skipping invalid row (missing name, price, or barcode):", product);
-            return Promise.reject('Missing required fields');
-          }
-          return productService.post('/products/add', payload);
-        });
-
-        const settledResults = await Promise.allSettled(uploadPromises);
-        
-        settledResults.forEach(result => {
-          if (result.status === 'fulfilled') {
-            successCount++;
-          } else {
-            errorCount++;
-            console.error("Upload failed for one product:", result.reason);
-          }
-        });
-
+        const { successCount, errorCount } = await processInBatches(results.data);
         alert(`${successCount} products uploaded successfully.\n${errorCount} products failed to upload.`);
-        
         await fetchData();
         setIsLoading(false);
-        
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
+        if (fileInputRef.current) fileInputRef.current.value = "";
       },
       error: (error) => {
         alert("Error parsing CSV file: " + error.message);
         setIsLoading(false);
       }
     });
+  };
+
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleSelectProduct = (productId: string, product: Product) => {
+    setSelectedProducts(prev => {
+      const newSelection = { ...prev };
+      if (newSelection[productId]) {
+        delete newSelection[productId];
+      } else {
+        newSelection[productId] = { quantity: 1, barcode: product.barcode, name: product.name, price: product.price };
+      }
+      return newSelection;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (Object.keys(selectedProducts).length === filteredProducts.length) {
+      setSelectedProducts({});
+    } else {
+      const newSelection: SelectedProducts = {};
+      filteredProducts.forEach(p => {
+        newSelection[p.id] = { quantity: 1, barcode: p.barcode, name: p.name, price: p.price };
+      });
+      setSelectedProducts(newSelection);
+    }
+  };
+
+  const handleBarcodeQuantityChange = (productId: string, quantity: number) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      [productId]: { ...prev[productId], quantity: Math.max(1, quantity) }
+    }));
+  };
+
+  const handleBulkPrint = async () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Could not open print window. Please disable your popup blocker.");
+      return;
+    }
+
+    const generationPromises: Promise<string>[] = [];
+
+    for (const productId in selectedProducts) {
+      const { quantity, barcode, name, price } = selectedProducts[productId];
+      for (let i = 0; i < quantity; i++) {
+        const promise = new Promise<string>((resolve, reject) => {
+          const canvas = document.createElement('canvas');
+          try {
+            JsBarcode(canvas, barcode, {
+              format: 'CODE128', displayValue: true, fontSize: 12, textMargin: 0,
+              width: 1.2, height: 30, margin: 2,
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            resolve(`
+              <div class="sticker">
+                <div class="product-name">${name}</div>
+                <img src="${dataUrl}" alt="barcode-${barcode}" />
+                <div class="product-price">₹${price.toFixed(2)}</div>
+              </div>
+            `);
+          } catch (e) {
+            console.error(`Failed to generate barcode for ${barcode}`, e);
+            reject(e);
+          }
+        });
+        generationPromises.push(promise);
+      }
+    }
+
+    const barcodeElements = (await Promise.all(generationPromises)).join('');
+
+    const printHTML = `
+      <html>
+        <head>
+          <title>Print Barcodes</title>
+          <style>
+            @page {
+              size: 4in auto; /* Set paper width to 4 inches, height is automatic for roll */
+              margin: 2mm;
+            }
+            body { 
+              font-family: sans-serif; 
+              margin: 0;
+              width: 4in; /* Ensure body uses the full width */
+            }
+            .sticker-sheet {
+              display: flex;
+              flex-wrap: wrap;
+              justify-content: flex-start; /* Align items to the start */
+              gap: 0;
+              padding: 0;
+            }
+            .sticker {
+              width: 1.5in;
+              height: 1in;
+              box-sizing: border-box; /* Include padding and border in the element's total width and height */
+              padding: 2mm;
+              border: 1px dashed #999; /* Dashed border for cutting guidance */
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              page-break-inside: avoid; /* Prevent a sticker from breaking across pages */
+              overflow: hidden;
+            }
+            .product-name {
+              font-size: 7pt;
+              font-weight: bold;
+              margin-bottom: 1mm;
+              /* Truncate long text */
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              width: 100%;
+            }
+            .product-price {
+              font-size: 9pt;
+              font-weight: bold;
+              margin-top: 1mm;
+            }
+            img {
+              max-height: 12mm; /* Constrain barcode image height */
+              width: auto;
+            }
+          </style>
+        </head>
+        <body><div class="sticker-sheet">${barcodeElements}</div></body>
+      </html>`;
+    
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   const filteredProducts = products.filter((p) => {
@@ -256,9 +368,9 @@ const Products = () => {
       (p.id && p.id.toString().includes(searchTerm))
     );
   });
+  const isAllSelected = Object.keys(selectedProducts).length > 0 && Object.keys(selectedProducts).length === filteredProducts.length;
 
-  if (isLoading)
-    return <div className="p-6 text-center text-gray-500">Loading...</div>;
+  if (isLoading) return <div className="p-6 text-center text-gray-500">Loading...</div>;
 
   return (
     <div className="space-y-6">
@@ -267,6 +379,11 @@ const Products = () => {
       <div className="bg-white p-6 rounded-lg shadow-sm flex justify-between items-center">
         <input type="text" placeholder="Search by Name, Category, or ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="form-input w-1/3" />
         <div className="flex gap-4">
+          {Object.keys(selectedProducts).length > 0 && (
+            <button onClick={handleBulkPrint} className="px-5 py-2.5 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 flex items-center gap-2">
+              <Printer size={20} /> Print Selected Barcodes
+            </button>
+          )}
           <button onClick={handleUploadClick} className="px-5 py-2.5 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 flex items-center gap-2">
             <Upload size={20} /> Upload CSV
           </button>
@@ -278,7 +395,7 @@ const Products = () => {
           </button>
         </div>
       </div>
-
+      
       <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -286,6 +403,7 @@ const Products = () => {
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="p-4"><input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="form-checkbox" /></th>
                 <th className="p-4">S.No</th><th className="p-4">Date</th>
                 <th className="p-4">Supplier Name</th><th className="p-4">Supplier ID</th>
                 <th className="p-4">Product Name</th><th className="p-4">Product ID</th>
@@ -296,13 +414,10 @@ const Products = () => {
             </thead>
             <tbody>
               {filteredProducts.map((product, index) => {
-                let displayBarcode = product.barcode;
-                if (displayBarcode && displayBarcode.length === 7 && displayBarcode.startsWith('0')) {
-                  displayBarcode = displayBarcode.substring(1);
-                }
-
+                const isSelected = !!selectedProducts[product.id];
                 return (
-                  <tr key={product.id} className="border-t hover:bg-gray-50">
+                  <tr key={product.id} className={`border-t transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <td className="p-4"><input type="checkbox" checked={isSelected} onChange={() => handleSelectProduct(product.id, product)} className="form-checkbox" /></td>
                     <td className="p-4">{index + 1}</td>
                     <td className="p-4">{product.createdAt ? new Date(product.createdAt).toLocaleDateString('en-GB') : '-'}</td>
                     <td className="p-4 font-medium">{product.vendorName || '-'}</td>
@@ -311,11 +426,15 @@ const Products = () => {
                     <td className="p-4 font-mono">{product.id}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono">{displayBarcode}</span>
-                        {product.barcodeImageUrl && (
-                          <button onClick={() => handleDownloadBarcode(product.barcodeImageUrl!, displayBarcode)} title="Download Barcode" className="text-gray-400 hover:text-blue-600">
-                            <Download size={16} />
-                          </button>
+                        <span className="font-mono">{product.barcode.length === 7 && product.barcode.startsWith('0') ? product.barcode.substring(1) : product.barcode}</span>
+                        {isSelected && (
+                          <input
+                            type="number"
+                            value={selectedProducts[product.id].quantity}
+                            onChange={(e) => handleBarcodeQuantityChange(product.id, parseInt(e.target.value, 10))}
+                            className="form-input w-16 text-center"
+                            min="1"
+                          />
                         )}
                       </div>
                     </td>
@@ -342,59 +461,29 @@ const Products = () => {
   );
 };
 
-const ProductFormModal = ({
-  product,
-  categories,
-  vendors,
-  onSave,
-  onClose,
-  defaultGst,
-}: {
-  product: Product | null;
-  categories: string[];
-  vendors: Vendor[];
-  onSave: (p: any) => void;
-  onClose: () => void;
-  defaultGst: number;
-}) => {
+const ProductFormModal = ({ product, categories, vendors, onSave, onClose, defaultGst }: { product: Product | null; categories: string[]; vendors: Vendor[]; onSave: (p: any) => void; onClose: () => void; defaultGst: number; }) => {
   const [formData, setFormData] = useState({
-    id: product?.id || null,
-    name: product?.name || '',
-    category: product?.category || categories[0] || '',
-    purchaseRate: product?.purchaseRate || 0,
-    purchaseGst: product?.purchaseGst ?? defaultGst,
-    price: product?.price || 0,
-    discount: product?.discount || 0,
-    stockQuantity: product?.stockQuantity || 0,
-    vendorId: product?.vendorId || (vendors[0]?.id || ''),
-    vendorName: product?.vendorName || (vendors[0]?.name || ''),
+    id: product?.id || null, name: product?.name || '', category: product?.category || categories[0] || '',
+    purchaseRate: product?.purchaseRate || 0, purchaseGst: product?.purchaseGst ?? defaultGst, price: product?.price || 0,
+    discount: product?.discount || 0, stockQuantity: product?.stockQuantity || 0,
+    vendorId: product?.vendorId || (vendors[0]?.id || ''), vendorName: product?.vendorName || (vendors[0]?.name || ''),
     barcode: product?.barcode || '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(formData); };
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
   const handleVendorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedVendor = vendors.find((v) => v.id === e.target.value);
-    if (selectedVendor) {
-      setFormData((prev) => ({ ...prev, vendorId: selectedVendor.id, vendorName: selectedVendor.name }));
-    }
+    if (selectedVendor) { setFormData((prev) => ({ ...prev, vendorId: selectedVendor.id, vendorName: selectedVendor.name })); }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">{product ? 'Edit Product' : 'Add New Product'}</h2>
-          <button onClick={onClose}><X size={24} /></button>
-        </div>
+        <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">{product ? 'Edit Product' : 'Add New Product'}</h2><button onClick={onClose}><X size={24} /></button></div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label>Product Name</label><input name="name" type="text" value={formData.name} onChange={handleChange} className="form-input mt-1" required /></div>
@@ -410,17 +499,7 @@ const ProductFormModal = ({
             <div><label>Stock Quantity</label><input name="stockQuantity" type="number" value={formData.stockQuantity} onChange={handleChange} className="form-input mt-1" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label>Purchase GST (%)</label>
-              <input
-                name="purchaseGst"
-                type="number"
-                value={formData.purchaseGst}
-                onChange={handleChange}
-                readOnly={!product}
-                className={`form-input mt-1 ${!product ? 'bg-gray-100' : ''}`}
-              />
-            </div>
+            <div><label>Purchase GST (%)</label><input name="purchaseGst" type="number" value={formData.purchaseGst} onChange={handleChange} readOnly={!product} className={`form-input mt-1 ${!product ? 'bg-gray-100' : ''}`} /></div>
             <div><label>Discount (%)</label><input name="discount" type="number" value={formData.discount} onChange={handleChange} className="form-input mt-1" /></div>
             <div><label>Barcode</label><input name="barcode" type="text" value={formData.barcode} onChange={handleChange} className="form-input mt-1" /></div>
           </div>
