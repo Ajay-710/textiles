@@ -277,9 +277,8 @@ const handleFindBill = async (invoiceId: string) => {
 
 
   
-  // --- SENIOR DEV FIX: Restored the invoiceNumber parameter ---
+  // --- SENIOR DEV FIX: Updated print format to add DIS column and make text bold ---
   const handlePrint = (invoiceNumber: string) => {
-    // This entire function's logic is correct, it just needed the parameter.
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       alert("Could not open print window. Please disable your popup blocker.");
@@ -295,6 +294,7 @@ const handleFindBill = async (invoiceId: string) => {
     const finalReceivedAmount = parsedReceivedAmount > 0 ? parsedReceivedAmount : totalAmount;
 
     let totalGstAmount = 0;
+    let totalDiscountAmount = 0;
     let totalTaxableAmount = 0;
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
 
@@ -303,8 +303,10 @@ const handleFindBill = async (invoiceId: string) => {
         const discountAmount = subtotal * (item.Discount / 100);
         const taxableAmount = subtotal - discountAmount;
         const gstAmount = taxableAmount * (item.GST / 100);
+        
         totalTaxableAmount += taxableAmount;
         totalGstAmount += gstAmount;
+        totalDiscountAmount += discountAmount;
     });
 
     const effectiveGstRate = totalTaxableAmount > 0 ? (totalGstAmount / totalTaxableAmount) * 100 : 0;
@@ -313,53 +315,145 @@ const handleFindBill = async (invoiceId: string) => {
       <html><head><title>Invoice - ${invoiceNumber}</title>
       <style>
         @page { margin: 5mm; }
-        body { font-family: 'Courier New', monospace; font-size: 10pt; color: #000; margin: 0; padding: 0; background-color: #fff; }
-        .invoice-container { width: 280px; margin: 0; padding: 5px; }
+        body { 
+            font-family: 'Courier New', monospace; 
+            font-size: 10pt; 
+            color: #000; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #fff;
+            font-weight: bold; /* FIX: Make all text bold */
+        }
+        .invoice-container { width: 72mm; margin: 0 auto; padding: 5px; }
         .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; }
-        .font-bold { font-weight: bold; }
-        hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+        
+        .sep-single { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+        .sep-double { border: none; border-top: 3px double #000; margin: 5px 0; }
+        
         table { width: 100%; border-collapse: collapse; } 
-        th, td { padding: 2px; vertical-align: top;}
+        th, td { padding: 2px 0; vertical-align: top;}
+
         .header h1 { font-size: 14pt; margin: 0; } 
-        .header p { font-size: 10pt; margin: 1px 0; }
-        .meta-info p { font-size: 10pt; margin: 2px 0; }
-        .items-table th { padding-bottom: 5px; }
-        .items-table .item-name-row td { padding-top: 1px; font-size: 9pt; }
-        .totals-table td { padding: 3px 2px; }
-        ul { padding-left: 15px; font-size: 9pt; margin: 5px 0; } 
-        li { margin-bottom: 3px; }
+        .header p { font-size: 9pt; margin: 1px 0; }
+        
+        .meta-info td { font-size: 9pt; padding: 1px 0; }
+        
+        .items-table { border: 1px solid #000; font-size: 9pt; }
+        .items-table th, .items-table td {
+            border: 1px solid #000;
+            padding: 3px 5px;
+            vertical-align: middle;
+        }
+        .items-table th { font-weight: bold; }
+
+        .totals-table { font-size: 10pt; }
+        .totals-table td { padding: 3px 0; }
+        .totals-table .final-row { font-size: 12pt; }
+        .payment-info td { border-top: 1px dashed #000; padding-top: 5px; }
+
+        .footer { font-size: 8pt; margin-top: 10px; text-align: left; }
+        .footer ul { padding-left: 15px; margin: 5px 0 0; list-style-position: outside; }
       </style></head>
       <body><div class="invoice-container">
-        <div class="header text-center"><h1>${shopName}</h1><p class="font-bold">GSTIN NO: ${gstNumber}</p></div>
-        <p class="text-left">Invoice: ${invoiceNumber}<br>Date: ${formattedDate}</p><hr>
-        <h2 class="text-center font-bold" style="font-size:12pt; margin: 5px 0;">INVOICE</h2>
-        <div class="meta-info"><p>CASHIER: TGT-Cashier01</p><p>Customer: ${customerName || 'WALK-IN'}</p><p>Contact: ${customerPhone || 'N/A'}</p></div><hr>
+        
+        <div class="header text-center">
+            <h1>${shopName}</h1>
+            <p>GSTIN NO: ${gstNumber}</p>
+        </div>
+        
+        <div class="sep-single"></div>
+        
+        <h2 class="text-center" style="font-size:11pt; margin: 5px 0;">INVOICE / BILL</h2>
+        <table class="meta-info">
+            <tr><td class="text-left" style="width: 50%;">Invoice No:</td><td class="text-right">${invoiceNumber}</td></tr>
+            <tr><td class="text-left">Date & Time:</td><td class="text-right">${formattedDate}</td></tr>
+            <tr><td class="text-left">Cashier:</td><td class="text-right">TGT-Cashier01</td></tr>
+        </table>
+        
+        <div class="sep-single"></div>
+
+        <table class="meta-info">
+            <tr><td class="text-left">Customer:</td><td class="text-right">${customerName || 'WALK-IN'}</td></tr>
+            <tr><td class="text-left">Contact:</td><td class="text-right">${customerPhone || 'N/A'}</td></tr>
+        </table>
+
+        <div class="sep-double"></div>
+        
+        <!-- ITEMS TABLE (FIXED) -->
         <table class="items-table">
-          <thead><tr><th class="text-left">S#</th><th class="text-left">ID</th><th class="text-right">Price</th><th class="text-right">Qty</th><th class="text-right">Total</th></tr></thead>
+          <thead>
+            <tr>
+                <th class="text-left" style="width: 40%;">PARTICULARS</th>
+                <th class="text-center" style="width: 10%;">QTY</th>
+                <th class="text-center" style="width: 10%;">DIS</th>
+                <th class="text-right" style="width: 20%;">RATE</th>
+                <th class="text-right" style="width: 20%;">AMOUNT</th>
+            </tr>
+          </thead>
           <tbody>
           ${items.map((i, idx) => `
-            <><tr><td class="text-left">${idx + 1}</td><td class="text-left">${i.barcode}</td><td class="text-right">₹${i.price.toFixed(2)}</td><td class="text-right">${i.qty}</td><td class="text-right">₹${i.total.toFixed(2)}</td></tr>
-            <tr class="item-name-row"><td colspan="5" class="text-left">${i.name} (GST:${i.GST}%, Disc:${i.Discount}%)</td></tr></>
+            <tr>
+                <td class="text-left">${i.name}</td>
+                <td class="text-center">${i.qty}</td>
+                <td class="text-center">${i.Discount}</td>
+                <td class="text-right">${i.price.toFixed(2)}</td>
+                <td class="text-right">${i.total.toFixed(2)}</td>
+            </tr>
           `).join('')}
           </tbody>
-        </table><hr>
-        <div><p class="font-bold">Payment Mode</p><table class="totals-table"><tbody><tr><td>${paymentMethod}</td><td class="text-right">₹${totalAmount.toFixed(2)}</td></tr></tbody></table></div><hr>
-        <table class="totals-table"><tbody>
-          <tr><td>TOTAL RECEIVED AMOUNT</td><td class="text-right">₹${finalReceivedAmount.toFixed(2)}</td></tr>
-          <tr><td>TOTAL GST AMOUNT (GST @ ${effectiveGstRate.toFixed(2)}%)</td><td class="text-right">₹${totalGstAmount.toFixed(2)}</td></tr>
-          ${paymentMethod === 'Cash' && changeDue > 0 ? `<tr><td>CHANGE DUE</td><td class="text-right font-bold">₹${changeDue.toFixed(2)}</td></tr>` : ''}
-          <tr><td>TOTAL QTY: ${totalQty}</td><td></td></tr>
-          <tr><td>TOTAL ITEMS: ${items.length}</td><td></td></tr>
-        </tbody></table><hr>
-        <div class="terms-conditions"><p class="font-bold">Terms & Conditions</p>
-          <ul><li>All offers are subject to their respective T&Cs.</li><li>Returns/exchanges accepted within 30 days.</li><li>No returns on Underwear, Cosmetics, Accessories.</li><li>Bras & Vests can be exchanged post-inspection.</li><li>Discounts include applicable GST adjustments.</li><li>Credit note for items with manufacturing defects.</li></ul>
+        </table>
+        
+        <div class="sep-double"></div>
+        
+        <table class="totals-table">
+            <tr><td class="text-left">Items Count: ${items.length}</td><td class="text-right">Total Qty: ${totalQty}</td></tr>
+            <tr><td class="text-left">Total Discount</td><td class="text-right">₹${totalDiscountAmount.toFixed(2)}</td></tr>
+            <tr><td class="text-left">Taxable Amount</td><td class="text-right">₹${totalTaxableAmount.toFixed(2)}</td></tr>
+            <tr><td class="text-left">Total GST @ ${effectiveGstRate.toFixed(2)}%</td><td class="text-right">₹${totalGstAmount.toFixed(2)}</td></tr>
+            <tr class="final-row"><td class="text-left">GRAND TOTAL</td><td class="text-right">₹${totalAmount.toFixed(2)}</td></tr>
+        </table>
+
+        <div class="sep-single"></div>
+
+        <table class="totals-table payment-info">
+            <tr><td class="text-left">Payment Mode: ${paymentMethod}</td><td class="text-right"></td></tr>
+            <tr><td class="text-left">Amount Paid</td><td class="text-right">₹${finalReceivedAmount.toFixed(2)}</td></tr>
+            ${paymentMethod === 'Cash' && changeDue > 0 ? `<tr><td class="text-left" style="color: green;">CHANGE DUE</td><td class="text-right" style="color: green;">₹${changeDue.toFixed(2)}</td></tr>` : ''}
+        </table>
+        
+        <div class="sep-single"></div>
+        
+        <div class="footer">
+            <p class="text-center" style="margin-bottom: 5px;">Terms & Conditions</p>
+            <ul>
+                <li>All offers are subject to their respective T&Cs.</li>
+                <li>Returns/exchanges accepted within 30 days.</li>
+                <li>No returns on Underwear, Cosmetics, Accessories.</li>
+                <li>Bras & Vests can be exchanged post-inspection.</li>
+                <li>Discounts include applicable GST adjustments.</li>
+                <li>Credit note for items with manufacturing defects.</li>
+            </ul>
         </div>
-        <div class="text-center" style="margin-top: 10px;"><p>${invoiceNumber}</p><p class="font-bold">${billMessage}</p></div>
+        
+        <div class="footer text-center">
+            <p style="margin: 10px 0;">----------------------------------</p>
+            <p>*** ${billMessage} ***</p>
+            <p style="margin-top: 5px;">Invoice ID: ${invoiceNumber}</p>
+        </div>
       </div></body></html>`;
+    // Write and print
     printWindow.document.write(billHTML);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
+    
+    setTimeout(() => {
+        try {
+            printWindow.close();
+        } catch (e) {
+            console.error("Failed to close print window automatically.", e);
+        }
+    }, 100);
   };
 
   // --- SENIOR DEV FIX: Re-ordered operations to prevent popup blocking ---
@@ -410,23 +504,28 @@ const handleFindBill = async (invoiceId: string) => {
   };
 
   const handleRetrieveHold = (bill: any) => {
+    const retrievedPaymentMethod = bill.paymentMethod === 'HOLD' ? 'Cash' : bill.paymentMethod || "Cash";
+    const totalDue = parseFloat(bill.finalAmount) || 0;
+    
     setItems(bill.items.map((i: any) => ({
-      barcode: i.productId, name: i.productName, price: i.unitPrice,
-      qty: i.quantity, total: i.netAmount, quantity: i.quantity,
-      GST: i.GST || 0, Discount: i.discountRate || 0,
+      barcode: i.productId, name: i.productName, price: parseFloat(i.unitPrice),
+      qty: i.quantity, total: parseFloat(i.netAmount), quantity: i.quantity,
+      GST: parseFloat(i.gstRate || 0), Discount: parseFloat(i.discountRate || 0),
     })));
     setCustomerName(bill.customerName);
     setCustomerPhone(bill.customerPhone);
-    setPaymentMethod(bill.paymentMethod || "Cash");
-    setReceivedAmount("");
+    setPaymentMethod(retrievedPaymentMethod);
+    
+    setReceivedAmount(totalDue.toFixed(2));
   };
+
 
 const handleDeleteHeldBill = async (billId: string, event: React.MouseEvent) => {
   event.stopPropagation();
   if (window.confirm('Mark this held bill as PAID and remove it from held bills?')) {
     try {
       await billingService.put(`/billing/${billId}/pay`);
-      alert('✅ Bill marked as PAID successfully!');
+      alert('✅ Bill cancelled successfully!');
       await fetchHoldBills(); // Refresh the held bills list
     } catch (err: any) {
       alert(err.response?.data?.error || `Failed to update bill ${billId}.`);
@@ -597,5 +696,3 @@ const handleDeleteHeldBill = async (billId: string, event: React.MouseEvent) => 
 };
 
 export default Billing;
-
-

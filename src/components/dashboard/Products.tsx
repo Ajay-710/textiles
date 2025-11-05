@@ -38,6 +38,9 @@ const Products = () => {
   const [defaultGst] = useLocalStorage('defaultGst', 5);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProducts>({});
+  
+  // Get shop name for barcode printing
+  const [shopName] = useLocalStorage('shopName', 'T.GOPI TEXTILES');
 
   const fetchData = async () => {
     try {
@@ -48,16 +51,19 @@ const Products = () => {
         vendorService.get('/vendors/all'),
       ]);
       if (productsResult.status === 'fulfilled') {
-        const fetchedProducts = productsResult.value.data || [];
+        const fetchedProducts: Product[] = productsResult.value.data || [];
         
-        fetchedProducts.sort((a, b) => {
+        // FIX: Filter out products with stockQuantity of 0 before setting state
+        const availableProducts = fetchedProducts.filter(p => p.stockQuantity > 0);
+        
+        availableProducts.sort((a, b) => {
           if (b.createdAt && !a.createdAt) return 1;
           if (!b.createdAt && a.createdAt) return -1;
           if (!b.createdAt && !a.createdAt) return 0;
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
-        setProducts(fetchedProducts);
+        setProducts(availableProducts);
       } else {
         console.error('Failed to fetch products:', productsResult.reason);
         setError('Could not load product data. Other data may be available.');
@@ -90,8 +96,26 @@ const Products = () => {
     const isEditing = !!formData.id;
     const now = new Date().toISOString();
     const payload = { ...formData, createdAt: isEditing ? formData.createdAt || now : now, updatedAt: now };
+    
+    // LOGIC CHECK: If stockQuantity is set to 0, proceed with delete
+    if (parseInt(payload.stockQuantity, 10) <= 0 && isEditing) {
+        if (window.confirm(`Product ${payload.name} stock is 0. Do you want to delete this product entirely?`)) {
+            try {
+                await productService.delete(`/products/delete/${formData.id}`);
+                await fetchData();
+                setIsModalOpen(false);
+                return;
+            } catch (err: any) {
+                alert(`Error deleting product: ${err.response?.data?.error || err.message}`);
+                return;
+            }
+        }
+    }
+    
     try {
       if (isEditing) {
+        // Your current logic is to delete and then re-add for updates. 
+        // This is highly unusual and inefficient, but maintaining original logic flow.
         await productService.delete(`/products/delete/${formData.id}`);
         await productService.post('/products/add', payload);
       } else {
@@ -254,22 +278,40 @@ const Products = () => {
 
     const generationPromises: Promise<string>[] = [];
 
+    // ... (logic to generate generationPromises remains the same) ...
     for (const productId in selectedProducts) {
       const { quantity, barcode, name, price } = selectedProducts[productId];
+      
+      // The displayed product name (from screenshot)
+      const productNameForSticker = name;
+      // The price displayed on the sticker
+      const priceForSticker = price.toFixed(2);
+      // The barcode ID (display value)
+      const barcodeDisplayValue = barcode; 
+
       for (let i = 0; i < quantity; i++) {
         const promise = new Promise<string>((resolve, reject) => {
           const canvas = document.createElement('canvas');
           try {
+            // Generate barcode
             JsBarcode(canvas, barcode, {
-              format: 'CODE128', displayValue: true, fontSize: 12, textMargin: 0,
-              width: 1.2, height: 30, margin: 2,
+              format: 'CODE128', 
+              displayValue: true, // This shows the barcode numbers below the bars
+              fontSize: 10,       // Smaller font size for display value
+              textMargin: 0, 
+              width: 1.2, 
+              height: 25, 
+              margin: 1, // Smaller margin to fit the elements
             });
             const dataUrl = canvas.toDataURL('image/png');
+            
+            // FIX: Maintained sticker HTML structure from previous step
             resolve(`
               <div class="sticker">
-                <div class="product-name">${name}</div>
+                <div class="shop-name">${shopName}</div>
                 <img src="${dataUrl}" alt="barcode-${barcode}" />
-                <div class="product-price">₹${price.toFixed(2)}</div>
+                <div class="product-name">${productNameForSticker}</div>
+                <div class="product-price">Rs :${priceForSticker}</div>
               </div>
             `);
           } catch (e) {
@@ -283,57 +325,83 @@ const Products = () => {
 
     const barcodeElements = (await Promise.all(generationPromises)).join('');
 
+    // FIX: Added CSS rules to remove default browser headers/footers in print dialog
     const printHTML = `
       <html>
         <head>
           <title>Print Barcodes</title>
           <style>
             @page {
-              size: 4in auto;
+              /* FIX 1: Remove default print headers/footers */
+              margin: 0;
+              size: 4in 6in;
               margin: 2mm;
+              
+              /* Non-standard but widely used to suppress headers/footers */
+              @top-left { content: ""; }
+              @top-center { content: ""; }
+              @top-right { content: ""; }
+              @bottom-left { content: ""; }
+              @bottom-center { content: ""; }
+              @bottom-right { content: ""; }
             }
             body { 
               font-family: sans-serif; 
+              /* FIX 2: Set margins to zero */
               margin: 0;
-              width: 4in;
+              padding: 0;
+              width: 100%;
+              -webkit-print-color-adjust: exact;
             }
             .sticker-sheet {
               display: flex;
               flex-wrap: wrap;
               justify-content: flex-start;
-              gap: 0;
+              gap: 2mm; 
+              padding: 1mm;
+              box-sizing: border-box;
             }
             .sticker {
-              width: 1.5in;
-              height: 1in;
+              width: 1.5in;  
+              height: 0.9in;
               box-sizing: border-box;
-              padding: 2mm;
-              border: 1px dashed #ccc;
+              padding: 1mm 2mm;
+              border: 1px solid #00000000;
               display: flex;
               flex-direction: column;
-              justify-content: center;
+              justify-content: space-between;
               align-items: center;
               page-break-inside: avoid;
               overflow: hidden;
+              background: white;
             }
-            .product-name {
+            .shop-name {
               font-size: 7pt;
               font-weight: bold;
+              margin-bottom: 0;
+              width: 100%;
+              text-align: center;
+            }
+            .product-name {
+              font-size: 8pt; 
+              font-weight: normal;
               margin-bottom: 1mm;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               width: 100%;
               text-align: center;
+              line-height: 1;
             }
             .product-price {
-              font-size: 9pt;
+              font-size: 10pt;
               font-weight: bold;
               margin-top: 1mm;
             }
             img {
-              max-height: 12mm;
+              max-height: 10mm;
               width: auto;
+              margin: 0;
             }
           </style>
         </head>
