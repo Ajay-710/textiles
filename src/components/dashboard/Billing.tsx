@@ -219,14 +219,10 @@ const handleFindBill = async (invoiceId: string) => {
     }
   };
 
-  const handleSaveBill = async () => {
+ const handleSaveBill = async () => {
   if (!items.length) throw new Error("Add at least one item!");
 
-  // Generate a Firestore-style bill ID (same format)
-  const billId = `TGT${(Math.floor(Math.random() * 1_000_000_000)).toString().padStart(9, "0")}`;
-  
   const billData = {
-    id: billId, // ✅ Firestore ID used as invoice
     customerName,
     customerPhone: Number(customerPhone) || 0,
     paymentMethod,
@@ -247,11 +243,38 @@ const handleFindBill = async (invoiceId: string) => {
     createdAt: new Date(),
   };
 
-  // Save via your backend (which writes to Firestore)
-  await billingService.post("/billing/create", billData);
+  try {
+    // 🔹 Step 1: Save the bill
+    const response = await billingService.post("/billing/create", billData);
+    if (response.status !== 200 && response.status !== 201) {
+      throw new Error("Failed to create bill");
+    }
 
-  return billId; // ✅ Return it for print use
+    // 🔹 Step 2: Fetch latest bill from Firestore
+    const latestRes = await billingService.get("/billing/all");
+    const allBills: any[] = latestRes.data || [];
+
+    // 🔹 Step 3: Sort by createdAt (most recent first)
+    const sorted = [...allBills].sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+
+    // 🔹 Step 4: Return latest bill ID
+    const latestBill = sorted.length > 0 ? sorted[0] : null;
+    if (!latestBill || !latestBill.id) {
+      throw new Error("No latest bill found!");
+    }
+
+    console.log("✅ Latest bill fetched:", latestBill);
+    return latestBill.id;
+  } catch (err) {
+    console.error("🔥 Failed to create bill:", err);
+    throw new Error("Failed to create bill");
+  }
 };
+
 
   
   // --- SENIOR DEV FIX: Restored the invoiceNumber parameter ---
@@ -347,11 +370,12 @@ const handleFindBill = async (invoiceId: string) => {
   }
 
   try {
-    const billId = await handleSaveBill(); // ✅ Firestore ID returned
-    handlePrint(billId); // ✅ Use it as invoice number
+    const billId = await handleSaveBill(); // ✅ Firestore ID fetched
+    handlePrint(billId); // ✅ Print actual Firestore ID
     alert(`✅ Bill ${billId} created and printed successfully!`);
     handleReset();
   } catch (err: any) {
+    console.error("🔥 Error in save & print:", err);
     alert(err.response?.data?.error || "Failed to create bill.");
   }
 };
