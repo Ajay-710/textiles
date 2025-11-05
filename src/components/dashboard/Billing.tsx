@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { billingService } from "@/lib/api";
+import { billingService, productService } from "@/lib/api";
 import { utils, writeFile } from "xlsx";
 import {
   Printer,
@@ -205,19 +205,46 @@ const handleFindBill = async (invoiceId: string) => {
 
 
   const handleRestoreStock = async (barcode: string, qty: number) => {
-    if (window.confirm(`Are you sure you want to return ${qty} unit(s) of product ${barcode} to stock?`)) {
-      try {
-        setLoading(true);
-        await billingService.post('/return/stock', { productId: barcode, quantity: qty });
-        alert(`Product ${barcode} restored to stock.`);
-        handleRemoveItem(barcode);
-      } catch (err: any) {
-        alert(err.response?.data?.error || `Failed to restore stock for ${barcode}.`);
-      } finally {
+  if (!isReturnMode) return;
+  if (!barcode || !qty) return alert("Invalid product data.");
+
+  if (window.confirm(`Restock ${qty} unit(s) of product ${barcode}?`)) {
+    try {
+      setLoading(true);
+
+      // Step 1: Fetch all products
+      const allRes = await productService.get("/products/all");
+      const products = allRes.data || [];
+
+      // Step 2: Find product by barcode
+      const existingProduct = products.find(
+        (p: any) =>
+          p.barcode?.toString().trim() === barcode.toString().trim()
+      );
+
+      if (!existingProduct) {
+        alert(`❌ Product with barcode ${barcode} not found in database.`);
         setLoading(false);
+        return;
       }
+
+      // Step 3: Use the updateStock endpoint (PUT /{id}/stock?change=qty)
+      await productService.put(`/products/${existingProduct.id}/stock?change=${qty}`);
+
+      handleRemoveItem(barcode);
+      alert(`✅ ${existingProduct.name} restocked successfully (+${qty}).`);
+    } catch (err: any) {
+      console.error("🔥 Restock Error:", err.response?.data || err.message);
+      alert(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Failed to restock product. Check console for details."
+      );
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+};
 
  const handleSaveBill = async () => {
   if (!items.length) throw new Error("Add at least one item!");
