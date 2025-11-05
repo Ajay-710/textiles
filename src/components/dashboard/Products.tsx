@@ -195,12 +195,22 @@ const Products = () => {
           return Promise.reject(`Vendor ID not found`);
         }
 
+        // FIX: Ensure the product ID is set to the barcode from the CSV.
+        // This tells the backend to use this specific ID instead of generating a new one.
         const payload = {
-          name: product.name, category: product.category, price: parseFloat(product.price) || 0,
-          stockQuantity: parseInt(product.stockQuantity, 10) || 0, barcode: product.barcode,
-          purchaseRate: parseFloat(product.purchaseRate) || 0, purchaseGst: parseFloat(product.purchaseGst) || defaultGst,
-          discount: parseFloat(product.discount) || 0, vendorId: vendor.id, vendorName: vendor.name,
-          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          id: product.barcode, // Use barcode from CSV as the product's ID
+          name: product.name,
+          category: product.category,
+          price: parseFloat(product.price) || 0,
+          stockQuantity: parseInt(product.stockQuantity, 10) || 0,
+          barcode: product.barcode,
+          purchaseRate: parseFloat(product.purchaseRate) || 0,
+          purchaseGst: parseFloat(product.purchaseGst) || defaultGst,
+          discount: parseFloat(product.discount) || 0,
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
 
         if (!payload.name || !payload.price || !payload.barcode) {
@@ -270,149 +280,178 @@ const Products = () => {
   };
 
   const handleBulkPrint = async () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert("Could not open print window. Please disable your popup blocker.");
-      return;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Could not open print window. Please disable your popup blocker.");
+    return;
+  }
+
+  const generationPromises: Promise<string>[] = [];
+
+  for (const productId in selectedProducts) {
+    const { quantity, barcode, name, price } = selectedProducts[productId];
+    const productNameForSticker = name;
+    const priceForSticker = price.toFixed(2);
+
+    for (let i = 0; i < quantity; i++) {
+      const promise = new Promise<string>((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        try {
+          JsBarcode(canvas, barcode, {
+            format: 'CODE128',
+            displayValue: true,
+            fontSize: 9,
+            textMargin: 0,
+            width: 1,
+            height: 30,
+            margin: 0,
+          });
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve(`
+            <div class="sticker">
+              <div class="shop-name">${shopName}</div>
+              <img src="${dataUrl}" alt="barcode-${barcode}" />
+              <div class="product-name">${productNameForSticker}</div>
+              <div class="product-price">Rs :${priceForSticker}</div>
+            </div>
+          `);
+        } catch (e) {
+          console.error(`Failed to generate barcode for ${barcode}`, e);
+          reject(e);
+        }
+      });
+      generationPromises.push(promise);
     }
+  }
 
-    const generationPromises: Promise<string>[] = [];
+  const allStickersHtml = await Promise.all(generationPromises);
 
-    // ... (logic to generate generationPromises remains the same) ...
-    for (const productId in selectedProducts) {
-      const { quantity, barcode, name, price } = selectedProducts[productId];
-      
-      // The displayed product name (from screenshot)
-      const productNameForSticker = name;
-      // The price displayed on the sticker
-      const priceForSticker = price.toFixed(2);
-      // The barcode ID (display value)
-      const barcodeDisplayValue = barcode; 
+  // Group stickers into rows of 4 per 4-inch width
+  const rows = [];
+  const itemsPerRow = 4;
+  for (let i = 0; i < allStickersHtml.length; i += itemsPerRow) {
+    const chunk = allStickersHtml.slice(i, i + itemsPerRow);
+    rows.push(`<div class="sticker-row">${chunk.join('')}</div>`);
+  }
+  const finalHtmlContent = rows.join('');
 
-      for (let i = 0; i < quantity; i++) {
-        const promise = new Promise<string>((resolve, reject) => {
-          const canvas = document.createElement('canvas');
-          try {
-            // Generate barcode
-            JsBarcode(canvas, barcode, {
-              format: 'CODE128', 
-              displayValue: true, // This shows the barcode numbers below the bars
-              fontSize: 10,       // Smaller font size for display value
-              textMargin: 0, 
-              width: 1.2, 
-              height: 25, 
-              margin: 1, // Smaller margin to fit the elements
-            });
-            const dataUrl = canvas.toDataURL('image/png');
-            
-            // FIX: Maintained sticker HTML structure from previous step
-            resolve(`
-              <div class="sticker">
-                <div class="shop-name">${shopName}</div>
-                <img src="${dataUrl}" alt="barcode-${barcode}" />
-                <div class="product-name">${productNameForSticker}</div>
-                <div class="product-price">Rs :${priceForSticker}</div>
-              </div>
-            `);
-          } catch (e) {
-            console.error(`Failed to generate barcode for ${barcode}`, e);
-            reject(e);
-          }
-        });
-        generationPromises.push(promise);
+  const printHTML = `
+<html>
+  <head>
+    <title>Print Barcodes</title>
+    <style>
+      @page {
+        size: 4in auto;
+        margin: 0;
       }
-    }
 
-    const barcodeElements = (await Promise.all(generationPromises)).join('');
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        width: 4in;
+        -webkit-print-color-adjust: exact !important;
+        background: white;
+      }
 
-    // FIX: Added CSS rules to remove default browser headers/footers in print dialog
-    const printHTML = `
-      <html>
-        <head>
-          <title>Print Barcodes</title>
-          <style>
-            @page {
-              /* FIX 1: Remove default print headers/footers */
-              margin: 0;
-              size: 4in 6in;
-              margin: 2mm;
-              
-              /* Non-standard but widely used to suppress headers/footers */
-              @top-left { content: ""; }
-              @top-center { content: ""; }
-              @top-right { content: ""; }
-              @bottom-left { content: ""; }
-              @bottom-center { content: ""; }
-              @bottom-right { content: ""; }
-            }
-            body { 
-              font-family: sans-serif; 
-              /* FIX 2: Set margins to zero */
-              margin: 0;
-              padding: 0;
-              width: 100%;
-              -webkit-print-color-adjust: exact;
-            }
-            .sticker-sheet {
-              display: flex;
-              flex-wrap: wrap;
-              justify-content: flex-start;
-              gap: 2mm; 
-              padding: 1mm;
-              box-sizing: border-box;
-            }
-            .sticker {
-              width: 1.5in;  
-              height: 0.9in;
-              box-sizing: border-box;
-              padding: 1mm 2mm;
-              border: 1px solid #00000000;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              align-items: center;
-              page-break-inside: avoid;
-              overflow: hidden;
-              background: white;
-            }
-            .shop-name {
-              font-size: 7pt;
-              font-weight: bold;
-              margin-bottom: 0;
-              width: 100%;
-              text-align: center;
-            }
-            .product-name {
-              font-size: 8pt; 
-              font-weight: normal;
-              margin-bottom: 1mm;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              width: 100%;
-              text-align: center;
-              line-height: 1;
-            }
-            .product-price {
-              font-size: 10pt;
-              font-weight: bold;
-              margin-top: 1mm;
-            }
-            img {
-              max-height: 10mm;
-              width: auto;
-              margin: 0;
-            }
-          </style>
-        </head>
-        <body><div class="sticker-sheet">${barcodeElements}</div></body>
-      </html>`;
-    
-    printWindow.document.write(printHTML);
-    printWindow.document.close();
-    printWindow.focus();
+      .sticker-sheet {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      /* 4 stickers per row (each 1.5in wide, small gap between) */
+      .sticker-row {
+        display: flex;
+        justify-content: flex-start;
+        gap: 0.05in;
+        margin-bottom: 0.05in;
+        width: 100%;
+        page-break-inside: avoid;
+      }
+
+      /* Each sticker block */
+      .sticker {
+        width: 1.5in;
+        height: 1in;
+        padding: 0.02in;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-evenly;
+        align-items: center;
+        background: white;
+        overflow: hidden;
+      }
+
+      .shop-name {
+        font-size: 6pt; /* smaller text */
+        font-weight: bold;
+        line-height: 1;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+      }
+
+      img {
+        height: 0.32in; /* slightly smaller barcode */
+        width: auto;
+        display: block;
+        margin: 0;
+      }
+
+      .product-name {
+        font-size: 6pt; /* smaller product name */
+        text-align: center;
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin: 0;
+        line-height: 1;
+      }
+
+      .product-price {
+        font-size: 7pt;
+        font-weight: bold;
+        text-align: center;
+        width: 100%;
+        line-height: 1;
+        margin: 0;
+      }
+
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+        }
+        .sticker-row:last-child {
+          margin-bottom: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sticker-sheet">${finalHtmlContent}</div>
+  </body>
+</html>
+`;
+
+
+  printWindow.document.write(printHTML);
+  printWindow.document.close();
+  printWindow.focus();
+
+  setTimeout(() => {
     printWindow.print();
-  };
+    setTimeout(() => {
+      printWindow.close();
+    }, 300);
+  }, 250);
+};
+
 
   const filteredProducts = products.filter((p) => {
     if (!p || !p.name) return false;
@@ -491,7 +530,9 @@ const Products = () => {
                     <td className="p-4 font-medium">{product.vendorName || '-'}</td>
                     <td className="p-4 font-mono">{product.vendorId || '-'}</td>
                     <td className="p-4 font-medium">{product.name}</td>
-                    <td className="p-4 font-mono">{product.id}</td>
+                    <td className="p-4 font-mono">
+                      {product.id && product.id.length === 7 && product.id.startsWith('0') ? product.id.substring(1) : product.id}
+                    </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <span className="font-mono">{product.barcode.length === 7 && product.barcode.startsWith('0') ? product.barcode.substring(1) : product.barcode}</span>

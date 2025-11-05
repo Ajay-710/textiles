@@ -277,7 +277,7 @@ const handleFindBill = async (invoiceId: string) => {
 
 
   
-  // --- SENIOR DEV FIX: Updated print format to add DIS column and make text bold ---
+  // --- SENIOR DEV FIX: Updated font-family for better readability ---
   const handlePrint = (invoiceNumber: string) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -316,13 +316,14 @@ const handleFindBill = async (invoiceId: string) => {
       <style>
         @page { margin: 5mm; }
         body { 
-            font-family: 'Courier New', monospace; 
-            font-size: 10pt; 
+            /* FIX: Changed font to a clearer, modern sans-serif stack */
+            font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif; 
+            font-size: 9.5pt; 
             color: #000; 
             margin: 0; 
             padding: 0; 
             background-color: #fff;
-            font-weight: bold; /* FIX: Make all text bold */
+            font-weight: bold;
         }
         .invoice-container { width: 72mm; margin: 0 auto; padding: 5px; }
         .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; }
@@ -379,7 +380,6 @@ const handleFindBill = async (invoiceId: string) => {
 
         <div class="sep-double"></div>
         
-        <!-- ITEMS TABLE (FIXED) -->
         <table class="items-table">
           <thead>
             <tr>
